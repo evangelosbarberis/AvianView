@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     
+    
     <style>
         :root {
             --bg-color: #556b2f;
@@ -280,7 +281,22 @@
             function initializeMap() {
                 map = L.map('map').setView([0, 0], 3);
                 getCustomTileLayer(isDarkMode).addTo(map);
+                loadHotspots();
                 return map;
+            }
+
+            function loadHotspots() {
+                fetch('/birds/get_hotspots')
+                    .then(response => response.json())
+                    .then(data => {
+                        const hotspots = data.hotspots;
+                        hotspots.forEach(hotspot => {
+                            const marker = L.marker([hotspot.latitude, hotspot.longitude])
+                                .addTo(map)
+                                .bindPopup(`<strong>${hotspot.name}</strong><br>${hotspot.description || ''}`);
+                        });
+                    })
+                    .catch(error => console.error('Error fetching hotspots:', error));
             }
 
             // Locate Me Functionality

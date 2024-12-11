@@ -69,3 +69,74 @@ success!
 timestamp: 2024-12-09T14:50:32.288143
 ALTER TABLE "my_checklist" ADD "common_name" CHAR(512);
 success!
+success!
+timestamp: 2024-12-10T23:58:04.294314
+ALTER TABLE "sightings" ADD "event_id" CHAR(512);
+success!
+timestamp: 2024-12-10T23:58:04.296256
+ALTER TABLE "checklist" ADD "event_id" CHAR(512);
+timestamp: 2024-12-10T23:58:04.297167
+ALTER TABLE "checklist" ADD "start_time" TIME;
+success!
+timestamp: 2024-12-10T23:58:04.298753
+CREATE TABLE "user_checklist"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "event_id" CHAR(512),
+    "common_name" CHAR(512),
+    "latitude" DOUBLE,
+    "longitude" DOUBLE,
+    "observation_date" DATE,
+    "start_time" TIME,
+    "observer_id" CHAR(512),
+    "duration_minutes" DOUBLE
+);
+success!
+timestamp: 2024-12-11T00:01:50.091389
+CREATE TABLE "bird_species"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" CHAR(512)
+);
+success!
+timestamp: 2024-12-11T00:01:50.093392
+CREATE TABLE "bird_sightings"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "event_code" CHAR(512),
+    "species_name" CHAR(512),
+    "count" INTEGER
+);
+success!
+timestamp: 2024-12-11T00:01:50.094428
+CREATE TABLE "observation_checklist"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "event_code" CHAR(512),
+    "lat" DOUBLE,
+    "lon" DOUBLE,
+    "date" DATE,
+    "start_time" TIME,
+    "observer" CHAR(512),
+    "duration" DOUBLE
+);
+success!
+timestamp: 2024-12-11T00:01:50.095416
+CREATE TABLE "user_observations"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "event_code" CHAR(512),
+    "species_name" CHAR(512),
+    "lat" DOUBLE,
+    "lon" DOUBLE,
+    "date" DATE,
+    "start_time" TIME,
+    "observer" CHAR(512),
+    "duration" DOUBLE
+);
+success!
+timestamp: 2024-12-11T00:18:16.819481
+CREATE TABLE "hotspots"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" CHAR(512),
+    "description" TEXT,
+    "latitude" DOUBLE,
+    "longitude" DOUBLE
+);
+success!
+success!
