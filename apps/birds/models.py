@@ -1,124 +1,111 @@
-"""
-This file defines the database models
-"""
-
 import datetime
-from .common import db, Field, auth
-from pydal.validators import *
 import os
 import csv
+from .common import db, auth
+from pydal import Field
+from pydal.validators import *
 
 def get_user_email():
     return auth.current_user.get('email') if auth.current_user else None
 
-def get_time():
+def current_utc_time():
     return datetime.datetime.utcnow()
 
-### Define your table below
+# Database Table Definitions
 db.define_table(
-    'species',
-    Field('COMMON_NAME', 'string')
+    "bird_species",
+    Field("name", "string", requires=IS_NOT_EMPTY(), label="Species Name")
 )
 
 db.define_table(
-    'sightings',
-    Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
-    Field('COMMON_NAME', 'string'),
-    Field('OBSERVATION_COUNT', 'string')
+    "bird_sightings",
+    Field("event_code", "string", label="Event Code"),
+    Field("species_name", "string", label="Species Name"),
+    Field("count", "integer", requires=IS_INT_IN_RANGE(0, None), label="Count")
 )
 
 db.define_table(
-    'checklist',
-    Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
-    Field('LATITUDE', 'double'),
-    Field('LONGITUDE', 'double'),
-    Field('OBSERVATION_DATE', 'date'),
-    Field('TIME_OBSERVATIONS_STARTED', 'time'),
-    Field('OBSERVER_ID', 'string'),
-    Field('DURATION_MINUTES', 'double')
+    "observation_checklist",
+    Field("event_code", "string", label="Event Code"),
+    Field("lat", "double", requires=IS_FLOAT_IN_RANGE(-90, 90), label="Latitude"),
+    Field("lon", "double", requires=IS_FLOAT_IN_RANGE(-180, 180), label="Longitude"),
+    Field("date", "date", requires=IS_DATE(), label="Observation Date"),
+    Field("start_time", "time", requires=IS_TIME(), label="Start Time"),
+    Field("observer", "string", label="Observer ID"),
+    Field("duration", "double", requires=IS_FLOAT_IN_RANGE(0, None), label="Duration (Minutes)")
 )
 
 db.define_table(
-    'my_checklist',
-    Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
-    Field('COMMON_NAME', 'string'),
-    Field('LATITUDE', 'double'),
-    Field('LONGITUDE', 'double'),
-    Field('OBSERVATION_DATE', 'date'),
-    Field('TIME_OBSERVATIONS_STARTED', 'time'),
-    Field('OBSERVER_ID', 'string'),
-    Field('DURATION_MINUTES', 'double')
+    "user_observations",
+    Field("event_code", "string", label="Event Code"),
+    Field("species_name", "string", label="Species Name"),
+    Field("lat", "double", requires=IS_FLOAT_IN_RANGE(-90, 90), label="Latitude"),
+    Field("lon", "double", requires=IS_FLOAT_IN_RANGE(-180, 180), label="Longitude"),
+    Field("date", "date", requires=IS_DATE(), label="Observation Date"),
+    Field("start_time", "time", requires=IS_TIME(), label="Start Time"),
+    Field("observer", "string", label="Observer ID"),
+    Field("duration", "double", requires=IS_FLOAT_IN_RANGE(0, None), label="Duration (Minutes)")
 )
 
-### Data Seeding ###
-def seed_species():
-    """Seed the species table from species.csv."""
-    csv_path = os.path.join(os.getcwd(), "apps/birds/uploads/species.csv")
-    # Clear the table if it already has data
-    db(db.species.id > 0).delete()
+# Seed Functions
+def populate_species():
+    species_file = os.path.join(os.getcwd(), "apps/birds/uploads/species.csv")
+    db(db.bird_species.id > 0).delete()
     db.commit()
-    if os.path.exists(csv_path):
+    if os.path.exists(species_file):
         try:
-            with open(csv_path, 'r') as f:
-                reader = csv.DictReader(f)
+            with open(species_file, "r") as file:
+                reader = csv.DictReader(file)
                 for row in reader:
-                    db.species.insert(COMMON_NAME=row['COMMON NAME'].strip())
+                    db.bird_species.insert(name=row["COMMON NAME"].strip())
             db.commit()
-            print("Species table seeded successfully.")
-        except Exception as e:
-            print(f"Error seeding species table: {e}")
+            print("Successfully seeded bird_species table.")
+        except Exception as error:
+            print(f"Error populating bird_species: {error}")
     else:
-        print(f"File not found: {csv_path}")
+        print(f"File not found: {species_file}")
 
-
-def seed_sightings():
-    """Seed the sightings table from sightings.csv."""
-    csv_path = os.path.join(os.getcwd(), "apps/birds/uploads/sightings.csv")
-    if db(db.sightings).isempty():  # Check if the sightings table is empty
+def populate_sightings():
+    sightings_file = os.path.join(os.getcwd(), "apps/birds/uploads/sightings.csv")
+    if db(db.bird_sightings).isempty():
         try:
-            with open(csv_path, 'r') as f:
-                reader = csv.DictReader(f)
+            with open(sightings_file, "r") as file:
+                reader = csv.DictReader(file)
                 for row in reader:
-                    try:
-                        OBSERVATION_COUNT = int(row['OBSERVATION_COUNT'])
-                    except ValueError:
-                        OBSERVATION_COUNT = 0  # Default to 0 if parsing fails
-                    db.sightings.insert(
-                        SAMPLING_EVENT_IDENTIFIER=row['SAMPLING_EVENT_IDENTIFIER'],
-                        COMMON_NAME=row['COMMON_NAME'],
-                        OBSERVATION_COUNT=OBSERVATION_COUNT
+                    count = int(row["OBSERVATION_COUNT"]) if row["OBSERVATION_COUNT"].isdigit() else 0
+                    db.bird_sightings.insert(
+                        event_code=row["SAMPLING_EVENT_IDENTIFIER"],
+                        species_name=row["COMMON NAME"],
+                        count=count
                     )
             db.commit()
-            print("Sightings table seeded successfully.")
-        except Exception as e:
-            print(f"Error seeding sightings table: {e}")
+            print("Successfully seeded bird_sightings table.")
+        except Exception as error:
+            print(f"Error populating bird_sightings: {error}")
 
-def seed_checklist():
-    """Seed the checklist table from checklists.csv."""
-    csv_path = os.path.join(os.getcwd(), "apps/birds/uploads/checklists.csv")
-    if db(db.checklist).isempty():  # Check if the checklist table is empty
+def populate_checklists():
+    checklist_file = os.path.join(os.getcwd(), "apps/birds/uploads/checklists.csv")
+    if db(db.observation_checklist).isempty():
         try:
-            with open(csv_path, 'r') as f:
-                reader = csv.DictReader(f)
+            with open(checklist_file, "r") as file:
+                reader = csv.DictReader(file)
                 for row in reader:
-                    db.checklist.insert(
-                        SAMPLING_EVENT_IDENTIFIER=row['SAMPLING_EVENT_IDENTIFIER'],
-                        LATITUDE=float(row['LATITUDE']),
-                        LONGITUDE=float(row['LONGITUDE']),
-                        OBSERVATION_DATE=row['OBSERVATION_DATE'],
-                        TIME_OBSERVATIONS_STARTED=row['TIME_OBSERVATIONS_STARTED'],
-                        OBSERVER_ID=row['OBSERVER_ID'],
-                        DURATION_MINUTES=float(row['DURATION_MINUTES'])
+                    db.observation_checklist.insert(
+                        event_code=row["SAMPLING_EVENT_IDENTIFIER"],
+                        lat=float(row["LATITUDE"]),
+                        lon=float(row["LONGITUDE"]),
+                        date=row["OBSERVATION_DATE"],
+                        start_time=row["TIME_OBSERVATIONS_STARTED"],
+                        observer=row["OBSERVER_ID"],
+                        duration=float(row["DURATION_MINUTES"])
                     )
             db.commit()
-            print("Checklist table seeded successfully.")
-        except Exception as e:
-            print(f"Error seeding checklist table: {e}")
+            print("Successfully seeded observation_checklist table.")
+        except Exception as error:
+            print(f"Error populating observation_checklist: {error}")
 
-# Seed the tables
-seed_species()
-seed_sightings()
-seed_checklist()
+populate_species()
+populate_sightings()
+populate_checklists()
 
-# Always commit your changes to avoid problems later
 db.commit()
