@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" class="dark:bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn py4web</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>">
+    
+    <!-- Tailwind CSS with Dark Mode Support -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            light: '#3b82f6',
+                            dark: '#2563eb'
+                        },
+                        secondary: {
+                            light: '#10b981',
+                            dark: '#059669'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom Styles for Enhanced Dark/Light Mode -->
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+        body {
+            @apply transition-colors duration-300 ease-in-out 
+                   bg-white text-gray-900 
+                   dark:bg-gray-900 dark:text-gray-100;
+        }
+        .navbar {
+            @apply transition-colors duration-300 
+                   bg-gray-100 text-gray-900 
+                   dark:bg-gray-800 dark:text-gray-100;
+        }
+        .dropdown-menu {
+            @apply absolute right-0 mt-2 w-48 
+                   bg-white text-gray-800 
+                   dark:bg-gray-700 dark:text-gray-200 
+                   rounded-md shadow-lg z-20;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+    <!-- Dark/Light Mode Toggle -->
+    <div class="fixed top-4 right-4 z-50">
+        <button id="theme-toggle" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 transition">
+            <i id="theme-icon" class="fas fa-moon dark:text-white"></i>
+        </button>
+    </div>
+
+    <!-- Navigation bar -->
+    <nav class="navbar shadow-md py-4">
+        <div class="container mx-auto flex justify-between items-center px-4">
+            <div class="flex items-center">
+                <a href="[[=URL('index')]]" class="text-xl font-bold hover:text-primary-light dark:hover:text-primary-dark transition">
+                    Learn py4web
+                </a>
+            </div>
+
+            <!-- Mobile Menu Toggle -->
+            <div class="md:hidden">
+                <button id="mobile-menu-toggle" class="focus:outline-none">
+                    <i class="fas fa-bars text-gray-900 dark:text-gray-100"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Menu -->
+            <div id="nav-menu" class="hidden md:flex space-x-4 items-center">
+                <div class="relative">
+                    [[block page_menu_items]]<!-- individual pages can add menu items here -->[[end]]
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    [[if globals().get('user'):]]
+                    <div class="relative group">
+                        <button id="user-dropdown-btn" class="flex items-center space-x-2 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded">
+                            <i class="fas fa-user"></i>
+                            <span>[[=globals().get('user').get('email')]]</span>
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <div id="user-dropdown" class="dropdown-menu hidden">
+                            <a href="[[=URL('auth/profile')]]" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600">Profile</a>
+                            <a href="[[=URL('auth/change_password')]]" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600">Change Password</a>
+                            <hr class="my-1 border-gray-200 dark:border-gray-600">
+                            <a href="[[=URL('auth/logout')]]" class="block px-4 py-2 text-red-600 hover:bg-gray-100 dark:hover:bg-gray-600">Logout</a>
+                        </div>
+                    </div>
+                    [[else:]]
+                    <div class="space-x-2">
+                        <a href="[[=URL('auth/register')]]" class="bg-primary-light hover:bg-primary-dark dark:bg-primary-dark dark:hover:bg-primary-light text-white px-4 py-2 rounded transition">Sign up</a>
+                        <a href="[[=URL('auth/login')]]" class="bg-secondary-light hover:bg-secondary-dark dark:bg-secondary-dark dark:hover:bg-secondary-light text-white px-4 py-2 rounded transition">Log in</a>
+                    </div>
+                    [[pass]]
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow container mx-auto px-4 py-6">
+        [[include]]
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white py-6">
+        <div class="container mx-auto text-center">
+            Made with 
+            <a href="https://py4web.com" class="text-primary-light dark:text-primary-dark hover:underline">py4web</a> | 
+            <a href="https://learn-py4web.github.io" class="text-primary-light dark:text-primary-dark hover:underline">Learn py4web!</a>
+        </div>
+    </footer>
+
+    <!-- JavaScript for Interactivity -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+            const navMenu = document.getElementById('nav-menu');
+            const userDropdownBtn = document.getElementById('user-dropdown-btn');
+            const userDropdown = document.getElementById('user-dropdown');
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+
+            // Theme Toggle
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            }
+
+            themeToggle.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                const isDark = document.documentElement.classList.contains('dark');
+                
+                // Update icon
+                if (isDark) {
+                    themeIcon.classList.remove('fa-moon');
+                    themeIcon.classList.add('fa-sun');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+
+            // Mobile menu toggle
+            mobileMenuToggle.addEventListener('click', () => {
+                navMenu.classList.toggle('hidden');
+            });
+
+            // User dropdown toggle
+            if (userDropdownBtn && userDropdown) {
+                userDropdownBtn.addEventListener('click', () => {
+                    userDropdown.classList.toggle('hidden');
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (event) => {
+                    if (!userDropdownBtn.contains(event.target) && !userDropdown.contains(event.target)) {
+                        userDropdown.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- External Scripts -->
+    <script src="js/sugar.min.js"></script>
+    <script src="js/axios.min.js"></script>
+    <script src="js/vue3.js"></script>
+    <script src="js/utils.js"></script>
+    
+    [[block page_scripts]]<!-- individual pages can add scripts here -->[[end]]
+</body>
+</html>
