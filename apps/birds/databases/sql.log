@@ -140,3 +140,44 @@ CREATE TABLE "hotspots"(
 );
 success!
 success!
+success!
+success!
+success!
+timestamp: 2024-12-11T00:39:47.337956
+CREATE TABLE "bird_registry"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "scientific_name" CHAR(512),
+    "common_name" CHAR(512),
+    "conservation_status" CHAR(512)
+);
+success!
+timestamp: 2024-12-11T00:39:47.340495
+CREATE TABLE "bird_observation_log"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "bird_id" INTEGER REFERENCES "bird_registry" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "observation_count" INTEGER,
+    "observation_date" DATE,
+    "observation_time" TIME
+);
+success!
+timestamp: 2024-12-11T00:39:47.341602
+CREATE TABLE "bird_expedition"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "latitude" DOUBLE,
+    "longitude" DOUBLE,
+    "start_time" TIME,
+    "duration_minutes" DOUBLE,
+    "expedition_date" DATE,
+    "total_species_observed" INTEGER
+);
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!

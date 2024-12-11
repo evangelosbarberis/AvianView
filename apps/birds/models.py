@@ -1,119 +1,146 @@
-import datetime
 import os
 import csv
-from .common import db, auth
-from pydal import Field
+import datetime
+from .common import db, Field, auth
 from pydal.validators import *
+
+class DataSeeder:
+    @staticmethod
+    def _read_csv(file_path):
+        """
+        Helper method to safely read CSV files
+        
+        Args:
+            file_path (str): Path to the CSV file
+        
+        Returns:
+            list: List of dictionaries containing CSV data
+        """
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}")
+            return []
+        
+        try:
+            with open(file_path, 'r') as f:
+                return list(csv.DictReader(f))
+        except Exception as e:
+            print(f"Error reading file {file_path}: {e}")
+            return []
+
+    @classmethod
+    def seed_table(cls, table, csv_path, mapping_func):
+        """
+        Generic method to seed database tables
+        
+        Args:
+            table: Database table to seed
+            csv_path (str): Path to the CSV file
+            mapping_func (callable): Function to map CSV rows to database rows
+        """
+        # Clear existing data before seeding
+        db(table.id > 0).delete()
+        db.commit()
+
+        data = cls._read_csv(csv_path)
+        try:
+            for row in data:
+                table.insert(**mapping_func(row))
+            db.commit()
+            print(f"{table._tablename} table seeded successfully.")
+        except Exception as e:
+            print(f"Error seeding {table._tablename} table: {e}")
 
 def get_user_email():
     return auth.current_user.get('email') if auth.current_user else None
 
-def current_utc_time():
+def get_time():
     return datetime.datetime.utcnow()
 
-# Database Table Definitions
-db.define_table(
-    "bird_species",
-    Field("name", "string", requires=IS_NOT_EMPTY(), label="Species Name")
-)
+def define_database_tables():
+    """
+    Database table definitions with clear, unique field creation
+    """
+    # Species table
+    if 'species' not in db.tables():
+        db.define_table('species', 
+            Field('COMMON_NAME', 'string')
+        )
 
-db.define_table(
-    "bird_sightings",
-    Field("event_code", "string", label="Event Code"),
-    Field("species_name", "string", label="Species Name"),
-    Field("count", "integer", requires=IS_INT_IN_RANGE(0, None), label="Count")
-)
+    # Sightings table
+    if 'sightings' not in db.tables():
+        db.define_table('sightings', 
+            Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
+            Field('COMMON_NAME', 'string'),
+            Field('OBSERVATION_COUNT', 'string')
+        )
 
-db.define_table(
-    "hotspots",
-    Field("name", "string", requires=IS_NOT_EMPTY()),
-    Field("latitude", "double", requires=IS_FLOAT_IN_RANGE(-90, 90)),
-    Field("longitude", "double", requires=IS_FLOAT_IN_RANGE(-180, 180)),
-    Field("description", "text", default="")
-)
+    # Checklist table
+    if 'checklist' not in db.tables():
+        db.define_table('checklist', 
+            Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
+            Field('LATITUDE', 'double'),
+            Field('LONGITUDE', 'double'),
+            Field('OBSERVATION_DATE', 'date'),
+            Field('TIME_OBSERVATIONS_STARTED', 'time'),
+            Field('OBSERVER_ID', 'string'),
+            Field('DURATION_MINUTES', 'double')
+        )
 
-db.define_table(
-    "observation_checklist",
-    Field("event_code", "string", label="Event Code"),
-    Field("lat", "double", requires=IS_FLOAT_IN_RANGE(-90, 90), label="Latitude"),
-    Field("lon", "double", requires=IS_FLOAT_IN_RANGE(-180, 180), label="Longitude"),
-    Field("date", "date", requires=IS_DATE(), label="Observation Date"),
-    Field("start_time", "time", requires=IS_TIME(), label="Start Time"),
-    Field("observer", "string", label="Observer ID"),
-    Field("duration", "double", requires=IS_FLOAT_IN_RANGE(0, None), label="Duration (Minutes)")
-)
+    # My Checklist table
+    if 'my_checklist' not in db.tables():
+        db.define_table('my_checklist', 
+            Field('SAMPLING_EVENT_IDENTIFIER', 'string'),
+            Field('COMMON_NAME', 'string'),
+            Field('LATITUDE', 'double'),
+            Field('LONGITUDE', 'double'),
+            Field('OBSERVATION_DATE', 'date'),
+            Field('TIME_OBSERVATIONS_STARTED', 'time'),
+            Field('OBSERVER_ID', 'string'),
+            Field('DURATION_MINUTES', 'double')
+        )
 
-db.define_table(
-    "user_observations",
-    Field("event_code", "string", label="Event Code"),
-    Field("species_name", "string", label="Species Name"),
-    Field("lat", "double", requires=IS_FLOAT_IN_RANGE(-90, 90), label="Latitude"),
-    Field("lon", "double", requires=IS_FLOAT_IN_RANGE(-180, 180), label="Longitude"),
-    Field("date", "date", requires=IS_DATE(), label="Observation Date"),
-    Field("start_time", "time", requires=IS_TIME(), label="Start Time"),
-    Field("observer", "string", label="Observer ID"),
-    Field("duration", "double", requires=IS_FLOAT_IN_RANGE(0, None), label="Duration (Minutes)")
-)
+def seed_database():
+    base_path = os.path.join(os.getcwd(), "apps/birds/uploads")
+    
+    # Seeding configurations
+    seeding_config = [
+        {
+            'table': db.species,
+            'file': os.path.join(base_path, 'species.csv'),
+            'mapper': lambda row: {'COMMON_NAME': row['COMMON NAME'].strip()}
+        },
+        {
+            'table': db.sightings,
+            'file': os.path.join(base_path, 'sightings.csv'),
+            'mapper': lambda row: {
+                'SAMPLING_EVENT_IDENTIFIER': row['SAMPLING_EVENT_IDENTIFIER'],
+                'COMMON_NAME': row['COMMON_NAME'],
+                'OBSERVATION_COUNT': row.get('OBSERVATION_COUNT', 0)
+            }
+        },
+        {
+            'table': db.checklist,
+            'file': os.path.join(base_path, 'checklists.csv'),
+            'mapper': lambda row: {
+                'SAMPLING_EVENT_IDENTIFIER': row['SAMPLING_EVENT_IDENTIFIER'],
+                'LATITUDE': float(row['LATITUDE']),
+                'LONGITUDE': float(row['LONGITUDE']),
+                'OBSERVATION_DATE': row['OBSERVATION_DATE'],
+                'TIME_OBSERVATIONS_STARTED': row['TIME_OBSERVATIONS_STARTED'],
+                'OBSERVER_ID': row['OBSERVER_ID'],
+                'DURATION_MINUTES': float(row['DURATION_MINUTES'])
+            }
+        }
+    ]
+    
+    # Seed tables
+    for config in seeding_config:
+        DataSeeder.seed_table(
+            config['table'], 
+            config['file'], 
+            config['mapper']
+        )
 
-# Seed Functions
-def populate_species():
-    species_file = os.path.join(os.getcwd(), "apps/birds/uploads/species.csv")
-    db(db.bird_species.id > 0).delete()
-    db.commit()
-    if os.path.exists(species_file):
-        try:
-            with open(species_file, "r") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    db.bird_species.insert(name=row["COMMON NAME"].strip())
-            db.commit()
-            print("Successfully seeded bird_species table.")
-        except Exception as error:
-            print(f"Error populating bird_species: {error}")
-    else:
-        print(f"File not found: {species_file}")
-
-def populate_sightings():
-    sightings_file = os.path.join(os.getcwd(), "apps/birds/uploads/sightings.csv")
-    if db(db.bird_sightings).isempty():
-        try:
-            with open(sightings_file, "r") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    count = int(row["OBSERVATION_COUNT"]) if row["OBSERVATION_COUNT"].isdigit() else 0
-                    db.bird_sightings.insert(
-                        event_code=row["SAMPLING_EVENT_IDENTIFIER"],
-                        species_name=row["COMMON NAME"],
-                        count=count
-                    )
-            db.commit()
-            print("Successfully seeded bird_sightings table.")
-        except Exception as error:
-            print(f"Error populating bird_sightings: {error}")
-
-def populate_checklists():
-    checklist_file = os.path.join(os.getcwd(), "apps/birds/uploads/checklists.csv")
-    if db(db.observation_checklist).isempty():
-        try:
-            with open(checklist_file, "r") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    db.observation_checklist.insert(
-                        event_code=row["SAMPLING_EVENT_IDENTIFIER"],
-                        lat=float(row["LATITUDE"]),
-                        lon=float(row["LONGITUDE"]),
-                        date=row["OBSERVATION_DATE"],
-                        start_time=row["TIME_OBSERVATIONS_STARTED"],
-                        observer=row["OBSERVER_ID"],
-                        duration=float(row["DURATION_MINUTES"])
-                    )
-            db.commit()
-            print("Successfully seeded observation_checklist table.")
-        except Exception as error:
-            print(f"Error populating observation_checklist: {error}")
-
-populate_species()
-populate_sightings()
-populate_checklists()
-
-db.commit()
+# Initialize tables and seed database
+define_database_tables()
+seed_database()
