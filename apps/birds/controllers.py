@@ -56,6 +56,12 @@ def search_species():
         species = db(db.species.COMMON_NAME.contains(query)).select().as_list()
     return {"species": species}
 
+@action("get_hotspots")
+@action.uses(db)
+def get_hotspots():
+    hotspots = db(db.hotspots).select().as_list()
+    return {"hotspots": hotspots}
+
 @action("submit_checklist", method=["POST"])
 @action.uses(db)
 def submit_checklist():

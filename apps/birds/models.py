@@ -25,6 +25,14 @@ db.define_table(
 )
 
 db.define_table(
+    "hotspots",
+    Field("name", "string", requires=IS_NOT_EMPTY()),
+    Field("latitude", "double", requires=IS_FLOAT_IN_RANGE(-90, 90)),
+    Field("longitude", "double", requires=IS_FLOAT_IN_RANGE(-180, 180)),
+    Field("description", "text", default="")
+)
+
+db.define_table(
     "observation_checklist",
     Field("event_code", "string", label="Event Code"),
     Field("lat", "double", requires=IS_FLOAT_IN_RANGE(-90, 90), label="Latitude"),

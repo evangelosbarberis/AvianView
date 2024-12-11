@@ -130,3 +130,13 @@ CREATE TABLE "user_observations"(
     "duration" DOUBLE
 );
 success!
+timestamp: 2024-12-11T00:18:16.819481
+CREATE TABLE "hotspots"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" CHAR(512),
+    "description" TEXT,
+    "latitude" DOUBLE,
+    "longitude" DOUBLE
+);
+success!
+success!
