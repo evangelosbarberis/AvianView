@@ -9,8 +9,14 @@ const app = Vue.createApp({
     },
     methods: {
         viewSpeciesDetails(species) {
+            // Set the search query to the selected species' name
+            this.searchQuery = species.COMMON_NAME;
+            
             // Fetch additional details for the selected species
             this.selectedSpecies = species;
+            
+            // Trigger species search to filter the list
+            this.fetchSpecies();
         },
         async fetchSpecies() {
             try {

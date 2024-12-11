@@ -95,7 +95,7 @@
             </thead>
             <tbody>
                 <tr v-for="species in filteredSpecies" :key="species.id">
-                    <td>{{ species.common_name }}</td>
+                    <td>{{ species.COMMON_NAME }}</td>
                     <td>
                         <button class="button is-small is-info" @click="viewSpeciesDetails(species)">
                             View Details
