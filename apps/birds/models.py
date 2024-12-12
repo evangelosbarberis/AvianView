@@ -121,16 +121,10 @@ def define_database_tables():
         )
 
 def seed_database(base_path=None):
-    """
-    Seed the database with data from CSV files
-    
-    Args:
-        base_path (str, optional): Base directory containing CSV files
-    """
     if base_path is None:
         base_path = os.path.join(os.getcwd(), "apps/birds/uploads")
 
-    # Seeding configurations with more robust mapping
+    # Seeding configurations with more robust mapping and data validation
     seeding_config = [
         {
             'table': db.species,
@@ -142,36 +136,41 @@ def seed_database(base_path=None):
             }
         },
         {
+            'table': db.checklist,
+            'file': os.path.join(base_path, 'checklists.csv'),
+            'mapper': lambda row: {
+                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING_EVENT_IDENTIFIER', str(get_time())),
+                'LATITUDE': float(row.get('LATITUDE', 0)),
+                'LONGITUDE': float(row.get('LONGITUDE', 0)),
+                'OBSERVATION_DATE': row.get('OBSERVATION_DATE', datetime.date.today()),
+                'TIME_OBSERVATIONS_STARTED': row.get('TIME_OBSERVATIONS_STARTED', datetime.time()),
+                'OBSERVER_ID': row.get('OBSERVER_ID', ''),
+                'DURATION_MINUTES': float(row.get('DURATION_MINUTES', 0))
+            }
+        },
+        {
             'table': db.sightings,
             'file': os.path.join(base_path, 'sightings.csv'),
             'mapper': lambda row: {
                 'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING_EVENT_IDENTIFIER', ''),
                 'COMMON_NAME': row.get('COMMON_NAME', ''),
-                'OBSERVATION_COUNT': int(row.get('OBSERVATION_COUNT', 1))
-            }
-        },
-        {
-            'table': db.checklist,
-            'file': os.path.join(base_path, 'checklists.csv'),
-            'mapper': lambda row: {
-                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING_EVENT_IDENTIFIER', ''),
-                'LATITUDE': float(row.get('LATITUDE', 0)),
-                'LONGITUDE': float(row.get('LONGITUDE', 0)),
-                'OBSERVATION_DATE': row.get('OBSERVATION_DATE', None),
-                'TIME_OBSERVATIONS_STARTED': row.get('TIME_OBSERVATIONS_STARTED', None),
-                'OBSERVER_ID': row.get('OBSERVER_ID', ''),
-                'DURATION_MINUTES': float(row.get('DURATION_MINUTES', 0))
+                'OBSERVATION_COUNT': int(row.get('OBSERVATION_COUNT', 1)),
+                'observer_email': row.get('OBSERVER_EMAIL', ''),
+                'observation_time': row.get('OBSERVATION_TIME', get_time())
             }
         }
     ]
 
-    # Seed tables with error handling
+    # Seed tables with error handling and logging
     for config in seeding_config:
-        DataSeeder.seed_table(
-            config['table'], 
-            config['file'], 
-            config['mapper']
-        )
+        try:
+            DataSeeder.seed_table(
+                config['table'], 
+                config['file'], 
+                config['mapper']
+            )
+        except Exception as e:
+            print(f"Error seeding {config['table']._tablename}: {e}")
 
 # Initialize database tables and seed
 define_database_tables()

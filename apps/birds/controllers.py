@@ -141,25 +141,25 @@ def get_bird_sightings():
         if not all([north, south, east, west]):
             return dict(error="Invalid geographic bounds", sightings=[])
         
-        # Base query for map bounds
+        # Modify query to use both my_checklist and checklist tables
         query = (
-            (db.my_checklist.LATITUDE <= north) & 
-            (db.my_checklist.LATITUDE >= south) & 
-            (db.my_checklist.LONGITUDE <= east) & 
-            (db.my_checklist.LONGITUDE >= west)
+            (db.checklist.LATITUDE <= north) & 
+            (db.checklist.LATITUDE >= south) & 
+            (db.checklist.LONGITUDE <= east) & 
+            (db.checklist.LONGITUDE >= west)
         )
         
         # Add species filtering if specified
         if selected_species:
             query &= (db.sightings.COMMON_NAME == selected_species)
         
-        # Join with sightings to get species information
+        # Join checklist and sightings to get comprehensive data
         observations = db(query).select(
-            db.my_checklist.LATITUDE, 
-            db.my_checklist.LONGITUDE, 
+            db.checklist.LATITUDE, 
+            db.checklist.LONGITUDE, 
             db.sightings.COMMON_NAME,
             db.sightings.OBSERVATION_COUNT,
-            left=db.sightings.on(db.my_checklist.id == db.sightings.SAMPLING_EVENT_IDENTIFIER)
+            left=db.sightings.on(db.checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
         )
         
         # Process observations into heat map format
@@ -168,8 +168,8 @@ def get_bird_sightings():
             try:
                 count = int(obs.sightings.OBSERVATION_COUNT or 1)
                 sightings.append({
-                    'lat': obs.my_checklist.LATITUDE,
-                    'lon': obs.my_checklist.LONGITUDE,
+                    'lat': obs.checklist.LATITUDE,
+                    'lon': obs.checklist.LONGITUDE,
                     'species': obs.sightings.COMMON_NAME,
                     'intensity': min(count, 10)  # Cap intensity for visual clarity
                 })
