@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <!-- Heatmap plugin -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.css" />
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
     
     <style>
         :root {
@@ -50,6 +50,7 @@
             text-align: center;
             width: 90%;
             max-width: 1000px;
+            position: relative;
         }
 
         .logo-container {
@@ -60,15 +61,13 @@
             max-width: 300px;
             height: auto;
             transition: filter 0.3s ease, color 0.3s ease;
-            color: var(--bg-color);  /* Light mode logo color */
-            filter: none;  /* Prevent any initial filtering */
+            color: var(--bg-color);
         }
 
         body.dark-mode .logo {
-            background-color: var(--dark-bg-color);  /* Remove inversion */
-            color: var(--dark-text-color);  /* Use a complementary color in dark mode */
+            background-color: var(--dark-bg-color);
+            color: var(--dark-text-color);
         }
-
 
         .map-container {
             background-color: var(--map-bg);
@@ -77,6 +76,7 @@
             padding: 20px;
             margin-bottom: 20px;
             transition: background-color 0.3s ease;
+            position: relative;
         }
 
         body.dark-mode .map-container {
@@ -167,49 +167,36 @@
             background-color: var(--dark-button-bg-hover);
         }
 
-        /* Dropdown Menu Styles */
-        .dropdown {
+        /* Species Selector Styles */
+        .species-selector {
             position: absolute;
             top: 20px;
-            left: 20px;
-            display: inline-block;
-            cursor: pointer;
-        }
-
-        .dropdown-content {
-            display: none;
-            position: absolute;
+            right: 150px;
+            z-index: 1000;
             background-color: var(--dropdown-bg);
-            min-width: 160px;
-            box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
-            z-index: 1;
             padding: 10px;
             border-radius: 5px;
-            transition: background-color 0.3s ease;
         }
 
-        .dropdown-content a {
-            color: var(--dropdown-text-color);
-            padding: 8px 12px;
-            text-decoration: none;
-            display: block;
-            border-radius: 5px;
-        }
-
-        .dropdown-content a:hover {
-            background-color: #ddd;
-        }
-
-        body.dark-mode .dropdown-content {
+        body.dark-mode .species-selector {
             background-color: var(--dark-dropdown-bg);
         }
 
-        body.dark-mode .dropdown-content a {
-            color: var(--dark-dropdown-text-color);
+        #species-search {
+            width: 200px;
+            padding: 5px;
+            margin-right: 10px;
         }
 
-        .dropdown.active .dropdown-content {
-            display: block;
+        #region-stats-button {
+            margin-top: 10px;
+        }
+
+        /* jQuery UI Autocomplete Styling */
+        .ui-autocomplete {
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
         }
     </style>
 </head>
@@ -221,6 +208,10 @@
 
         <div class="map-container">
             <div id="map"></div>
+            <div class="species-selector">
+                <input type="text" id="species-search" placeholder="Search species...">
+                <button id="clear-species" class="map-control-button">Clear Species</button>
+            </div>
             <div class="map-controls">
                 <button id="locate-me" class="map-control-button">
                     <i class="fas fa-location-arrow"></i> Locate Me
@@ -240,23 +231,90 @@
 
     <button class="theme-toggle" id="theme-toggle">🌙</button>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const themeToggleButton = document.getElementById('theme-toggle');
             const locateMeButton = document.getElementById('locate-me');
             const markObservationButton = document.getElementById('mark-observation');
+            const speciesSearch = document.getElementById('species-search');
+            const clearSpeciesButton = document.getElementById('clear-species');
 
-            let map, heatmapLayer;
+            let map, heatmapLayer, heatmapMarkerLayer, drawControl, selectedRegion;
             let isDarkMode = false;
+            let currentSpeciesFilter = null;
 
             // Map Initialization
             function initializeMap() {
                 map = L.map('map').setView([0, 0], 3);
                 getCustomTileLayer(isDarkMode).addTo(map);
+                
+                // Create a layer group for markers
+                heatmapMarkerLayer = L.layerGroup().addTo(map);
+                
+                // Initial heatmap load immediately
                 loadHeatMap();
-                map.on('moveend', loadHeatMap);  // Update heatmap when map moves
+                
+                map.on('moveend', loadHeatMap);
+
+                // Region Selection Control
+                drawControl = new L.Control.Draw({
+                    draw: {
+                        polygon: false,
+                        polyline: false,
+                        circle: false,
+                        marker: false,
+                        circlemarker: false,
+                        rectangle: {
+                            shapeOptions: {
+                                color: '#ff0000'
+                            }
+                        }
+                    }
+                });
+                map.addControl(drawControl);
+
+                map.on(L.Draw.Event.CREATED, function (e) {
+                    const layer = e.layer;
+                    const bounds = layer.getBounds();
+                    selectedRegion = {
+                        north: bounds.getNorth(),
+                        south: bounds.getSouth(),
+                        east: bounds.getEast(),
+                        west: bounds.getWest()
+                    };
+
+                    // Remove any existing region layers
+                    map.eachLayer((layer) => {
+                        if (layer instanceof L.Rectangle) {
+                            map.removeLayer(layer);
+                        }
+                    });
+
+                    // Add the region to the map
+                    layer.addTo(map);
+
+                    // Create region statistics button
+                    const regionStatsButton = document.createElement('button');
+                    regionStatsButton.textContent = 'Region Statistics';
+                    regionStatsButton.classList.add('map-control-button');
+                    regionStatsButton.id = 'region-stats-button';
+                    regionStatsButton.addEventListener('click', () => {
+                        // Redirect to stats page with region parameters
+                        const params = new URLSearchParams(selectedRegion);
+                        window.location.href = `/birds/stats?${params.toString()}`;
+                    });
+
+                    // Add the button near the map controls
+                    const mapControls = document.querySelector('.map-controls');
+                    mapControls.appendChild(regionStatsButton);
+                });
+
                 return map;
             }
 
@@ -277,14 +335,34 @@
                 }
             }
 
+            // Species Autocomplete
+            $(speciesSearch).autocomplete({
+                source: '/birds/search_species',
+                minLength: 2,
+                select: function(event, ui) {
+                    if (ui.item) {
+                        currentSpeciesFilter = ui.item.value;
+                        loadHeatMap(currentSpeciesFilter);
+                    }
+                }
+            });
+
+            // Clear species filter
+            clearSpeciesButton.addEventListener('click', () => {
+                speciesSearch.value = '';
+                currentSpeciesFilter = null;
+                loadHeatMap();
+            });
+
             // Fetch and Load Heatmap Data
-            function loadHeatMap() {
+            function loadHeatMap(selectedSpecies = null) {
                 const bounds = map.getBounds();
                 const mapBounds = {
                     north: bounds.getNorth(),
                     south: bounds.getSouth(),
                     east: bounds.getEast(),
-                    west: bounds.getWest()
+                    west: bounds.getWest(),
+                    species: selectedSpecies
                 };
 
                 fetch('/birds/get_bird_sightings', {
@@ -307,6 +385,12 @@
 
                     const sightings = data.sightings || [];
                     
+                    // Clear existing layers
+                    if (heatmapLayer) {
+                        map.removeLayer(heatmapLayer);
+                    }
+                    heatmapMarkerLayer.clearLayers();
+
                     // Validate the sightings data
                     const heatData = sightings
                         .filter(sighting => 
@@ -319,11 +403,6 @@
                             sighting.lon, 
                             sighting.intensity || 1
                         ]);
-
-                    // Remove the old heatmap layer if exists
-                    if (heatmapLayer) {
-                        map.removeLayer(heatmapLayer);
-                    }
 
                     // Only create heatmap if we have data
                     if (heatData.length > 0) {
@@ -340,6 +419,21 @@
                             }
                         }).addTo(map);
 
+                        // Add clickable markers for hotspots
+                        sightings.forEach(sighting => {
+                            const marker = L.circleMarker([sighting.lat, sighting.lon], {
+                                radius: 5,
+                                fillColor: 'transparent',
+                                color: '#000',
+                                weight: 1
+                            }).addTo(heatmapMarkerLayer);
+
+                            marker.on('click', () => {
+                                // Fetch detailed information for this hotspot
+                                fetchHotspotDetails(sighting);
+                            });
+                        });
+
                         console.log(`Loaded ${heatData.length} sightings on the map`);
                     } else {
                         console.log('No sightings found in the current map bounds');
@@ -347,6 +441,45 @@
                 })
                 .catch(error => {
                     console.error('Error fetching or processing bird sightings:', error);
+                });
+            }
+
+            // Fetch details for a specific hotspot
+            function fetchHotspotDetails(sighting) {
+                // Create a popup with loading state
+                const popup = L.popup()
+                    .setLatLng([sighting.lat, sighting.lon])
+                    .setContent('<div>Loading hotspot details...</div>')
+                    .openOn(map);
+
+                // Fetch detailed information about the hotspot
+                fetch('/birds/get_hotspot_details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: sighting.lat,
+                        lon: sighting.lon,
+                        species: currentSpeciesFilter
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Format the popup content
+                    const content = `
+                        <div class="hotspot-details">
+                            <h3>Hotspot Details</h3>
+                            <p><strong>Location:</strong> ${sighting.lat.toFixed(4)}, ${sighting.lon.toFixed(4)}</p>
+                            <p><strong>Species Observed:</strong> ${data.species_count || 'No species data'}</p>
+                            <p><strong>Total Observations:</strong> ${data.total_observations || 'N/A'}</p>
+                        </div>
+                    `;
+                    
+                    // Update the popup with detailed content
+                    popup.setContent(content);
+                })
+                .catch(error => {
+                    console.error('Error fetching hotspot details:', error);
+                    popup.setContent('<div>Error loading hotspot details</div>');
                 });
             }
 
@@ -363,7 +496,7 @@
                 });
 
                 getCustomTileLayer(isDarkMode).addTo(map);
-                loadHeatMap();  // Reload heatmap after theme switch
+                loadHeatMap(currentSpeciesFilter);  // Reload heatmap after theme switch
             }
 
             themeToggleButton.addEventListener('click', toggleTheme);

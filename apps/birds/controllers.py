@@ -69,7 +69,6 @@ class ChecklistManager:
             db.rollback()
             return dict(status="error", message=f"Error processing checklist: {str(e)}")
 
-# New Endpoint for Heat Map
 @action("get_bird_sightings", method=["POST"])
 @action.uses(db)
 def get_bird_sightings():
@@ -82,17 +81,22 @@ def get_bird_sightings():
         south = bounds.get('south')
         east = bounds.get('east')
         west = bounds.get('west')
+        selected_species = bounds.get('species')
         
         if not all([north, south, east, west]):
             return dict(error="Invalid bounds", sightings=[])
         
-        # Query to get sightings within the map bounds
+        # Base query for map bounds
         query = (
             (db.my_checklist.LATITUDE <= north) & 
             (db.my_checklist.LATITUDE >= south) & 
             (db.my_checklist.LONGITUDE <= east) & 
             (db.my_checklist.LONGITUDE >= west)
         )
+        
+        # Add species filtering if a species is selected
+        if selected_species:
+            query &= (db.sightings.COMMON_NAME == selected_species)
         
         # Join with sightings to get species information
         observations = db(query).select(
@@ -124,7 +128,51 @@ def get_bird_sightings():
         logger.error(f"Error in get_bird_sightings: {str(e)}")
         return dict(error=str(e), sightings=[])
 
-# Existing route handlers remain the same...
+@action("get_hotspot_details", method=["POST"])
+@action.uses(db)
+def get_hotspot_details():
+    try:
+        data = request.json
+        lat = data.get('lat')
+        lon = data.get('lon')
+        species = data.get('species')
+
+        # Base query for the specific location
+        query = (
+            (db.my_checklist.LATITUDE == lat) & 
+            (db.my_checklist.LONGITUDE == lon)
+        )
+
+        # Add species filter if provided
+        if species:
+            query &= (db.sightings.COMMON_NAME == species)
+
+        # Fetch species and observation details
+        observations = db(query).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME
+        )
+
+        # Prepare the response
+        species_details = [
+            {
+                'species': row.COMMON_NAME, 
+                'count': row.total_count
+            } for row in observations
+        ]
+
+        return dict(
+            species_count=len(species_details),
+            species_details=species_details,
+            total_observations=sum(row['count'] for row in species_details)
+        )
+
+    except Exception as e:
+        logger.error(f"Error in get_hotspot_details: {str(e)}")
+        return dict(error=str(e))
+
+# Existing routes remain the same
 @action('index')
 @action.uses('index.html', db, auth, ChecklistManager.url_signer)
 def index():
@@ -193,12 +241,6 @@ def stats():
 def location():
     return dict()
 
-@action("get_hotspots", method=["GET"])
-@action.uses(db)
-def get_hotspots():
-    hotspots = db(db.hotspots).select().as_list()
-    return dict(hotspots=hotspots)
-
 @action("get_observations", method=["GET"])
 @action.uses(db)
 def get_observations():
@@ -212,3 +254,51 @@ def get_observations():
             db.checklist.LATITUDE, db.checklist.LONGITUDE, db.sightings.OBSERVATION_COUNT
         ).as_list()
     return dict(observations=observations)
+
+@action("get_region_statistics", method=["GET"])
+@action.uses(db)
+def get_region_statistics():
+    """
+    Retrieve detailed statistics for a specific geographic region.
+    Expects query parameters: north, south, east, west
+    """
+    try:
+        # Parse region bounds from query parameters
+        north = float(request.params.get('north', 0))
+        south = float(request.params.get('south', 0))
+        east = float(request.params.get('east', 0))
+        west = float(request.params.get('west', 0))
+        
+        # Region bounds query
+        query = (
+            (db.my_checklist.LATITUDE <= north) & 
+            (db.my_checklist.LATITUDE >= south) & 
+            (db.my_checklist.LONGITUDE <= east) & 
+            (db.my_checklist.LONGITUDE >= west)
+        )
+        
+        # Aggregate statistics
+        species_summary = db(query).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME
+        )
+        
+        # Total observations and unique species
+        total_observations = sum(row.total_count for row in species_summary)
+        unique_species = len(species_summary)
+        
+        return dict(
+            species_summary=[
+                {
+                    'species': row.sightings.COMMON_NAME, 
+                    'total_count': row.total_count
+                } for row in species_summary
+            ],
+            total_observations=total_observations,
+            unique_species=unique_species
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_region_statistics: {str(e)}")
+        return dict(error=str(e))
