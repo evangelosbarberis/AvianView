@@ -177,6 +177,7 @@
         }
 
 
+
         body.dark-mode .species-selector {
             background-color: var(--dark-dropdown-bg);
         }
@@ -198,16 +199,18 @@
 
         /* jQuery UI Autocomplete Styling */
         .ui-autocomplete {
-            max-height: 200px;
-            overflow-y: auto;
-            overflow-x: hidden;
-            z-index: 2000; /* Ensures it appears above all elements */
-            position: absolute; /* Positions it correctly on the page */
-            background-color: white;
-            border: 1px solid #ccc;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-top: 2px; /* Prevent overlap with input box */
+            max-height: 300px; /* Ensure a scrollable dropdown if items exceed height */
+            overflow-y: auto; /* Allow vertical scrolling */
+            overflow-x: hidden; /* Prevent horizontal overflow */
+            position: absolute; /* Ensure proper positioning relative to the input */
+            z-index: 10000; /* Ensure it's above all other elements */
+            background-color: white; /* Improve visibility */
+            border: 1px solid #ccc; /* Define dropdown border */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+            margin-top: 5px; /* Slight separation from the input field */
+            border-radius: 5px; /* Smooth edges for aesthetics */
         }
+
 
         
     </style>

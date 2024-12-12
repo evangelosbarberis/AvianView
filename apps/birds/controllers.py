@@ -302,3 +302,12 @@ def get_region_statistics():
     except Exception as e:
         logger.error(f"Error in get_region_statistics: {str(e)}")
         return dict(error=str(e))
+    
+
+# @action("search_species", method=["GET"])
+# @action.uses(db)
+# def search_species():
+#     query = request.params.get("q", "").strip().lower()
+#     species = [] if not query else \
+#         db(db.species.COMMON_NAME.contains(query)).select().as_list()
+#     return dict(species=species)
