@@ -237,7 +237,7 @@
 
         // Map Initialization
         function initializeMap() {
-            map = L.map('map').setView([0, 0], 3);
+            map = L.map('map').setView([39.8283, -98.5795], 4);
             getCustomTileLayer().addTo(map);
 
             // Create a layer group for markers
@@ -453,12 +453,30 @@
                 })
                 .then(response => response.json())
                 .then(data => {
+                    let speciesDetailsHtml = '';
+                    if (data.species_details && data.species_details.length > 0) {
+                        speciesDetailsHtml = data.species_details.map(species => `
+                            <div class="species-detail">
+                                <strong>${species.species}:</strong> 
+                                Total Count: ${species.total_count} 
+                                (Observed in ${species.observation_count} occasions, 
+                                across ${species.unique_checklists} unique checklists)
+                            </div>
+                        `).join('');
+                    } else {
+                        speciesDetailsHtml = '<p>No species data available for this location</p>';
+                    }
+
                     const content = `
                         <div class="hotspot-details">
                             <h3>Hotspot Details</h3>
                             <p><strong>Location:</strong> ${sighting.lat.toFixed(4)}, ${sighting.lon.toFixed(4)}</p>
-                            <p><strong>Species Observed:</strong> ${data.species_count || 'No species data'}</p>
-                            <p><strong>Total Observations:</strong> ${data.total_observations || 'N/A'}</p>
+                            <p><strong>Total Species Observed:</strong> ${data.species_count || 0}</p>
+                            <p><strong>Total Observations:</strong> ${data.total_observations || 0}</p>
+                            <div class="species-list">
+                                <strong>Species Details:</strong>
+                                ${speciesDetailsHtml}
+                            </div>
                         </div>
                     `;
 
@@ -469,7 +487,6 @@
                     popup.setContent('<div>Error loading hotspot details</div>');
                 });
             }
-
             locateMeButton.addEventListener('click', () => {
                 map.locate({ setView: true, maxZoom: 16 });
             });

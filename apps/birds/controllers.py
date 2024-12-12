@@ -182,19 +182,11 @@ def get_bird_sightings():
     except Exception as e:
         logger.error(f"Error in get_bird_sightings: {str(e)}")
         return dict(error=str(e), sightings=[])
-
 @action("get_hotspot_details", method=["POST"])
 @action.uses(db)
 def get_hotspot_details():
     """
     Retrieve detailed information for a specific geographic point
-    
-    Expected JSON payload:
-    {
-        'lat': float,
-        'lon': float,
-        'species': optional species filter
-    }
     """
     try:
         data = request.json
@@ -202,41 +194,71 @@ def get_hotspot_details():
         lon = data.get('lon')
         species = data.get('species')
 
-        # Base query for the specific location
+        # Use a broader tolerance for matching coordinates
         query = (
-            (db.my_checklist.LATITUDE == lat) & 
-            (db.my_checklist.LONGITUDE == lon)
+            (db.checklist.LATITUDE >= lat - 0.01) & 
+            (db.checklist.LATITUDE <= lat + 0.01) & 
+            (db.checklist.LONGITUDE >= lon - 0.01) & 
+            (db.checklist.LONGITUDE <= lon + 0.01)
         )
 
-        # Add species filter if provided
-        if species:
-            query &= (db.sightings.COMMON_NAME == species)
-
-        # Fetch species and observation details
+        # Join checklist with sightings
         observations = db(query).select(
+            db.checklist.SAMPLING_EVENT_IDENTIFIER,
+            db.checklist.LATITUDE, 
+            db.checklist.LONGITUDE,
             db.sightings.COMMON_NAME, 
-            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
-            groupby=db.sightings.COMMON_NAME
+            db.sightings.OBSERVATION_COUNT,
+            left=db.sightings.on(db.checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
         )
 
-        # Prepare the response
-        species_details = [
+        # Filter by species if specified
+        if species:
+            observations = observations.find(lambda row: row.sightings.COMMON_NAME == species)
+
+        # Prepare detailed species information
+        species_details = {}
+        for obs in observations:
+            if obs.sightings.COMMON_NAME:  # Ensure we have a valid species name
+                species_name = obs.sightings.COMMON_NAME
+                count = obs.sightings.OBSERVATION_COUNT or 1
+                
+                if species_name not in species_details:
+                    species_details[species_name] = {
+                        'total_count': count,
+                        'observation_count': 1,
+                        'checklists': set([obs.checklist.SAMPLING_EVENT_IDENTIFIER])
+                    }
+                else:
+                    species_details[species_name]['total_count'] += count
+                    species_details[species_name]['observation_count'] += 1
+                    species_details[species_name]['checklists'].add(obs.checklist.SAMPLING_EVENT_IDENTIFIER)
+
+        # Convert to list for easier frontend processing
+        formatted_species_details = [
             {
-                'species': row.COMMON_NAME, 
-                'count': row.total_count
-            } for row in observations
+                'species': species, 
+                'total_count': details['total_count'],
+                'observation_count': details['observation_count'],
+                'unique_checklists': len(details['checklists'])
+            } for species, details in species_details.items()
         ]
 
+        # Sort by total count in descending order
+        formatted_species_details.sort(key=lambda x: x['total_count'], reverse=True)
+
         return dict(
-            species_count=len(species_details),
-            species_details=species_details,
-            total_observations=sum(row['count'] for row in species_details)
+            species_count=len(formatted_species_details),
+            species_details=formatted_species_details,
+            total_observations=sum(details['total_count'] for details in formatted_species_details) if formatted_species_details else 0,
+            location_lat=lat,
+            location_lon=lon
         )
 
     except Exception as e:
         logger.error(f"Error in get_hotspot_details: {str(e)}")
-        return dict(error=str(e))
-
+        return dict(error=str(e), species_count=0, species_details=[], total_observations=0)
+    
 # Species and Checklist Routes
 @action("get_species", method=["GET"])
 @action.uses(db)

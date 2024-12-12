@@ -4,9 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AvianView - Location Details</title>
+    <title>AvianView - My Birding Stats</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
     <style>
         :root {
             --bg-color: #556b2f;
@@ -31,26 +33,11 @@
             color: var(--text-color);
             transition: all 0.3s ease;
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        body.dark-mode {
-            background-color: var(--dark-bg-color);
-            color: var(--dark-text-color);
         }
 
         .container {
-            width: 90%;
             max-width: 1200px;
-        }
-
-        .location-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
+            margin: 0 auto;
         }
 
         .card {
@@ -60,12 +47,18 @@
             padding: 20px;
             margin-bottom: 20px;
             color: var(--card-text);
-            transition: background-color 0.3s ease;
         }
 
-        body.dark-mode .card {
-            background-color: var(--dark-card-bg);
-            color: var(--dark-card-text);
+        .species-search {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        #species-search-input {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
         }
 
         .species-list {
@@ -76,125 +69,259 @@
 
         .species-card {
             cursor: pointer;
-            transition: transform 0.3s ease, background-color 0.3s ease;
+            transition: transform 0.3s ease;
             border-radius: 10px;
             text-align: center;
+            padding: 15px;
         }
 
         .species-card:hover {
             transform: scale(1.05);
         }
 
+        #observation-map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
         .chart-container {
             height: 400px;
         }
 
-        .top-contributors {
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
         }
 
-        .theme-toggle {
-            background-color: var(--text-color);
-            border: none;
-            border-radius: 5px;
-            padding: 10px;
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            color: var(--card-text);
+        }
+
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
             cursor: pointer;
-            font-size: 1.2rem;
-            color: var(--bg-color);
-            transition: background-color 0.3s ease;
         }
 
-        body.dark-mode .theme-toggle {
-            background-color: var(--dark-text-color);
-            color: var(--dark-bg-color);
-        }
-
-        .nav-button {
-            display: inline-block;
-            padding: 10px 15px;
-            background-color: var(--button-bg);
+        .close-modal:hover {
             color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background-color 0.3s ease, transform 0.3s ease;
-            margin-top: 20px;
-        }
-
-        .nav-button:hover {
-            background-color: var(--button-bg-hover);
-            transform: scale(1.05);
-        }
-
-        body.dark-mode .nav-button {
-            background-color: var(--dark-button-bg);
-        }
-
-        body.dark-mode .nav-button:hover {
-            background-color: var(--dark-button-bg-hover);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="location-header">
-            <h1><i class="fa-solid fa-map-marker-alt"></i> Santa Cruz Region Details</h1>
-            <button id="theme-toggle" class="theme-toggle">🌙</button>
-        </div>
+        <h1><i class="fa-solid fa-binoculars"></i> My Birding Stats</h1>
 
         <div class="card">
-            <h2>Species Observed</h2>
+            <h2>Species I've Observed</h2>
+            <div class="species-search">
+                <input type="text" id="species-search-input" placeholder="Search species...">
+            </div>
             <div id="species-list" class="species-list">
-                <div class="card species-card" data-species="sparrow">
-                    <h3>Sparrow</h3>
-                    <p>Checklists: 42</p>
-                    <p>Total Sightings: 253</p>
-                </div>
-                <div class="card species-card" data-species="robin">
-                    <h3>Robin</h3>
-                    <p>Checklists: 35</p>
-                    <p>Total Sightings: 187</p>
-                </div>
-                <div class="card species-card" data-species="eagle">
-                    <h3>Eagle</h3>
-                    <p>Checklists: 12</p>
-                    <p>Total Sightings: 42</p>
-                </div>
+                <!-- Species will be dynamically populated here -->
             </div>
         </div>
 
         <div class="card">
-            <h2>Species Population Over Time</h2>
+            <h2>Observations Over Time</h2>
             <div class="chart-container">
-                <canvas id="speciesChart"></canvas>
+                <canvas id="observationTrendChart"></canvas>
             </div>
-        </div>
-
-        <div class="card">
-            <h2>Top Contributors</h2>
-            <div class="top-contributors">
-                <div>
-                    <h3>🥇 John Birder</h3>
-                    <p>152 Checklists</p>
-                </div>
-                <div>
-                    <h3>🥈 Sarah Watcher</h3>
-                    <p>127 Checklists</p>
-                </div>
-                <div>
-                    <h3>🥉 Mike Naturalist</h3>
-                    <p>98 Checklists</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="nav-buttons" style="text-align: center;">
-            <a href="/birds/add_checklist" class="nav-button">Enter Checklist</a>
-            <a href="/birds/stats" class="nav-button">My Birding Stats</a>
         </div>
     </div>
 
-    <script src="[[=URL('static', 'js/location.js')]]"></script>
+    <!-- Species Details Modal -->
+    <div id="species-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-species-name"></h2>
+            <div id="observation-map"></div>
+            <div id="species-observations-chart-container" class="chart-container">
+                <canvas id="species-observations-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables to store user's data
+        let userSpecies = [];
+        let userObservations = [];
+
+        // Fetch user's checklists and species
+        async function fetchUserData() {
+            try {
+                // Fetch user's checklists
+                const checklistResponse = await fetch('/birds/get_my_checklists');
+                const checklistData = await checklistResponse.json();
+
+                // Fetch species observations
+                const speciesResponse = await fetch('/birds/search_species');
+                const speciesData = await speciesResponse.json();
+
+                return { checklists: checklistData.checklists, species: speciesData.species };
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                return { checklists: [], species: [] };
+            }
+        }
+
+        // Populate species list
+        function populateSpeciesList(species) {
+            const speciesList = document.getElementById('species-list');
+            speciesList.innerHTML = '';
+
+            species.forEach(sp => {
+                const speciesCard = document.createElement('div');
+                speciesCard.className = 'card species-card';
+                speciesCard.dataset.species = sp.COMMON_NAME;
+                speciesCard.innerHTML = `
+                    <h3>${sp.COMMON_NAME}</h3>
+                    <p>Scientific Name: ${sp.scientific_name || 'N/A'}</p>
+                    <p>Conservation Status: ${sp.conservation_status || 'Unknown'}</p>
+                `;
+                speciesCard.addEventListener('click', () => showSpeciesDetails(sp.COMMON_NAME));
+                speciesList.appendChild(speciesCard);
+            });
+        }
+
+        // Search species functionality
+        function setupSpeciesSearch() {
+            const searchInput = document.getElementById('species-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const speciesCards = document.querySelectorAll('.species-card');
+                speciesCards.forEach(card => {
+                    const speciesName = card.dataset.species.toLowerCase();
+                    card.style.display = speciesName.includes(searchTerm) ? 'block' : 'none';
+                });
+            });
+        }
+
+        // Show species details modal
+        async function showSpeciesDetails(speciesName) {
+            const modal = document.getElementById('species-modal');
+            const modalSpeciesName = document.getElementById('modal-species-name');
+            const observationMap = document.getElementById('observation-map');
+            modalSpeciesName.textContent = speciesName;
+            modal.style.display = 'block';
+
+            // Fetch species-specific observations
+            try {
+                const response = await fetch('/birds/get_hotspot_details', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ species: speciesName })
+                });
+                const data = await response.json();
+
+                // Initialize map
+                if (window.speciesMap) {
+                    window.speciesMap.remove();
+                }
+                window.speciesMap = L.map('observation-map').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.speciesMap);
+
+                // Plot observations on map
+                data.species_details.forEach(detail => {
+                    L.marker([detail.latitude, detail.longitude])
+                        .bindPopup(`${speciesName}: ${detail.total_count} observations`)
+                        .addTo(window.speciesMap);
+                });
+
+                // Create observations chart
+                const ctx = document.getElementById('species-observations-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.species_details.map(d => `Location`),
+                        datasets: [{
+                            label: 'Observations',
+                            data: data.species_details.map(d => d.total_count),
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        title: { display: true, text: `${speciesName} Observations` }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error fetching species details:', error);
+            }
+        }
+
+        // Create observations trend chart
+        function createObservationTrendChart(observations) {
+            const ctx = document.getElementById('observationTrendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: observations.map(o => o.date),
+                    datasets: [{
+                        label: 'Observations',
+                        data: observations.map(o => o.count),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    title: { display: true, text: 'Birding Observations Over Time' }
+                }
+            });
+        }
+
+        // Close modal functionality
+        document.querySelector('.close-modal').addEventListener('click', () => {
+            document.getElementById('species-modal').style.display = 'none';
+        });
+
+        // Initialize page
+        async function initPage() {
+            const { checklists, species } = await fetchUserData();
+
+            // Populate species list
+            populateSpeciesList(species);
+
+            // Setup species search
+            setupSpeciesSearch();
+
+            // Process observations trend data
+            const observationsByDate = checklists.reduce((acc, checklist) => {
+                const date = new Date(checklist.OBSERVATION_DATE).toISOString().split('T')[0];
+                acc[date] = (acc[date] || 0) + 1;
+                return acc;
+            }, {});
+
+            const observationTrend = Object.entries(observationsByDate)
+                .map(([date, count]) => ({ date, count }))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Create observations trend chart
+            createObservationTrendChart(observationTrend);
+        }
+
+        // Initialize when page loads
+        initPage();
+    </script>
 </body>
 </html>

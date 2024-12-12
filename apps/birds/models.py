@@ -124,7 +124,10 @@ def seed_database(base_path=None):
     if base_path is None:
         base_path = os.path.join(os.getcwd(), "apps/birds/uploads")
 
-    # Seeding configurations with more robust mapping and data validation
+    # Add more verbose logging
+    print("Starting database seeding process...")
+
+    # Seeding configurations
     seeding_config = [
         {
             'table': db.species,
@@ -164,13 +167,17 @@ def seed_database(base_path=None):
     # Seed tables with error handling and logging
     for config in seeding_config:
         try:
+            print(f"Seeding {config['table']._tablename}...")
             DataSeeder.seed_table(
                 config['table'], 
                 config['file'], 
-                config['mapper']
+                config['mapper'],
+                verbose=True
             )
         except Exception as e:
             print(f"Error seeding {config['table']._tablename}: {e}")
+
+    print("Database seeding completed.")
 
 # Initialize database tables and seed
 define_database_tables()
