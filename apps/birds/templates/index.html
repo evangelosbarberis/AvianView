@@ -54,6 +54,8 @@
 
         .logo-container {
             margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
         }
 
         .logo {
@@ -171,7 +173,7 @@
             background-color: var(--dropdown-bg);
             padding: 10px;
             border-radius: 5px;
-            overflow: visible; /* Prevent clipping of dropdowns */
+            overflow: visible; /* Allow overflow for dropdowns */
         }
 
 
@@ -180,11 +182,9 @@
         }
 
         #species-search {
-            width: 200px;
+            width: 250px;
             padding: 5px;
-            margin-right: 10px;
-            position: relative; /* Ensure proper stacking context */
-            z-index: 1010; /* Higher than species-selector */
+            margin-right: 5px;
         }
 
         #clear-species {
@@ -200,13 +200,15 @@
         .ui-autocomplete {
             max-height: 200px;
             overflow-y: auto;
-            overflow-x: hidden; /* Prevent horizontal scrollbar */
-            z-index: 2000; /* Ensure it appears above other elements */
-            position: absolute; /* Ensure it positions correctly */
-            background-color: white; /* Ensure visibility */
-            border: 1px solid #ccc; /* Add border for clarity */
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add shadow for depth */
+            overflow-x: hidden;
+            z-index: 2000; /* Ensures it appears above all elements */
+            position: absolute; /* Positions it correctly on the page */
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 2px; /* Prevent overlap with input box */
         }
+
         
     </style>
 </head>
