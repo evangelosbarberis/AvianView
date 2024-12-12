@@ -70,6 +70,7 @@
         .map-container {
             position: relative;
             z-index: 1; /* Ensure it's below the autocomplete */
+            /* overflow: visible; */
         }
 
         body.dark-mode .map-container {
@@ -165,11 +166,13 @@
             position: absolute;
             top: 20px;
             right: 150px;
-            z-index: 1000;
+            z-index: 1000; /* Ensure it's above the map */
             background-color: var(--dropdown-bg);
             padding: 10px;
             border-radius: 5px;
+            overflow: visible; /* Prevent clipping of dropdowns */
         }
+
 
         body.dark-mode .species-selector {
             background-color: var(--dark-dropdown-bg);
@@ -179,6 +182,13 @@
             width: 200px;
             padding: 5px;
             margin-right: 10px;
+            position: relative; /* Ensure proper stacking context */
+            z-index: 1010; /* Higher than species-selector */
+        }
+
+        #clear-species {
+            position: relative;
+            z-index: 1005; /* Ensure it's below the autocomplete */
         }
 
         #region-stats-button {
@@ -192,7 +202,11 @@
             overflow-x: hidden; /* Prevent horizontal scrollbar */
             z-index: 2000; /* Ensure it appears above other elements */
             position: absolute; /* Ensure it positions correctly */
+            background-color: white; /* Ensure visibility */
+            border: 1px solid #ccc; /* Add border for clarity */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add shadow for depth */
         }
+        
     </style>
 </head>
 <body>
@@ -230,278 +244,281 @@
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const themeToggleButton = document.getElementById('theme-toggle');
-            const locateMeButton = document.getElementById('locate-me');
-            const markObservationButton = document.getElementById('mark-observation');
-            const speciesSearch = document.getElementById('species-search');
-            const clearSpeciesButton = document.getElementById('clear-species');
+    const themeToggleButton = document.getElementById('theme-toggle');
+    const locateMeButton = document.getElementById('locate-me');
+    const markObservationButton = document.getElementById('mark-observation');
+    const speciesSearch = document.getElementById('species-search');
+    const clearSpeciesButton = document.getElementById('clear-species');
 
-            let map, heatmapLayer, heatmapMarkerLayer, drawControl, selectedRegion;
-            let isDarkMode = false;
-            let currentSpeciesFilter = null;
+    let map, heatmapLayer, heatmapMarkerLayer, drawControl, selectedRegion;
+    let isDarkMode = false;
+    let currentSpeciesFilter = null;
 
-            // Map Initialization
-            function initializeMap() {
-                map = L.map('map').setView([0, 0], 3);
-                getCustomTileLayer(isDarkMode).addTo(map);
+    // Map Initialization
+    function initializeMap() {
+        map = L.map('map').setView([0, 0], 3);
+        getCustomTileLayer(isDarkMode).addTo(map);
 
-                // Create a layer group for markers
-                heatmapMarkerLayer = L.layerGroup().addTo(map);
+        // Create a layer group for markers
+        heatmapMarkerLayer = L.layerGroup().addTo(map);
 
-                // Initial heatmap load immediately
-                loadHeatMap();
+        // Initial heatmap load immediately
+        loadHeatMap();
 
-                map.on('moveend', loadHeatMap);
-
-                // Region Selection Control
-                drawControl = new L.Control.Draw({
-                    draw: {
-                        polygon: false,
-                        polyline: false,
-                        circle: false,
-                        marker: false,
-                        circlemarker: false,
-                        rectangle: {
-                            shapeOptions: {
-                                color: '#ff0000'
-                            }
-                        }
-                    }
-                });
-
-                map.addControl(drawControl);
-
-                map.on(L.Draw.Event.CREATED, function (e) {
-                    const layer = e.layer;
-                    const bounds = layer.getBounds();
-                    selectedRegion = {
-                        north: bounds.getNorth(),
-                        south: bounds.getSouth(),
-                        east: bounds.getEast(),
-                        west: bounds.getWest()
-                    };
-
-                    // Remove any existing region layers
-                    map.eachLayer((layer) => {
-                        if (layer instanceof L.Rectangle) {
-                            map.removeLayer(layer);
-                        }
-                    });
-
-                    // Add the region to the map
-                    layer.addTo(map);
-
-                    // Create region statistics button
-                    const regionStatsButton = document.createElement('button');
-                    regionStatsButton.textContent = 'Region Statistics';
-                    regionStatsButton.classList.add('map-control-button');
-                    regionStatsButton.id = 'region-stats-button';
-                    regionStatsButton.addEventListener('click', () => {
-                        // Redirect to stats page with region parameters
-                        const params = new URLSearchParams(selectedRegion);
-                        window.location.href = `/birds/stats?${params.toString()}`;
-                    });
-
-                    // Add the button near the map controls
-                    const mapControls = document.querySelector('.map-controls');
-                    mapControls.appendChild(regionStatsButton);
-                });
-
-                return map;
-            }
-
-            // Custom Tile Layer for Theme-Matching
-            function getCustomTileLayer(isDark) {
-                if (isDark) {
-                    return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                        attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
-                        maxZoom: 19,
-                        minZoom: 2
-                    });
-                } else {
-                    return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                        maxZoom: 19,
-                        minZoom: 2
-                    });
-                }
-            }
-
-            // Species Autocomplete
-            $(speciesSearch).autocomplete({
-                source: '/birds/search_species',
-                minLength: 2,
-                select: function(event, ui) {
-                    if (ui.item) {
-                        currentSpeciesFilter = ui.item.value;
-                        loadHeatMap(currentSpeciesFilter);
-                    }
-                }
-            });
-
-            // Clear species filter
-            clearSpeciesButton.addEventListener('click', () => {
-                speciesSearch.value = '';
-                currentSpeciesFilter = null;
-                loadHeatMap();
-            });
-
-            // Fetch and Load Heatmap Data
-            function loadHeatMap(selectedSpecies = null) {
-                const bounds = map.getBounds();
-                const mapBounds = {
-                    north: bounds.getNorth(),
-                    south: bounds.getSouth(),
-                    east: bounds.getEast(),
-                    west: bounds.getWest(),
-                    species: selectedSpecies
-                };
-
-                fetch('/birds/get_bird_sightings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(mapBounds),
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Check for any error in the response
-                    if (data.error) {
-                        console.error('Server returned an error:', data.error);
-                        return;
-                    }
-
-                    const sightings = data.sightings || [];
-
-                    // Clear existing layers
-                    if (heatmapLayer) {
-                        map.removeLayer(heatmapLayer);
-                    }
-
-                    heatmapMarkerLayer.clearLayers();
-
-                    // Validate the sightings data
-                    const heatData = sightings
-                        .filter(sighting =>
-                            sighting &&
-                            typeof sighting.lat === 'number' &&
-                            typeof sighting.lon === 'number'
-                        )
-                        .map(sighting => [
-                            sighting.lat,
-                            sighting.lon,
-                            sighting.intensity || 1
-                        ]);
-
-                    // Only create heatmap if we have data
-                    if (heatData.length > 0) {
-                        heatmapLayer = L.heatLayer(heatData, {
-                            radius: 25,
-                            blur: 15,
-                            maxZoom: 10,
-                            max: Math.max(...heatData.map(item => item[2])),
-                            gradient: {
-                                0.4: 'blue',
-                                0.65: 'lime',
-                                0.8: 'yellow',
-                                1: 'red'
-                            }
-                        }).addTo(map);
-
-                        // Add clickable markers for hotspots
-                        sightings.forEach(sighting => {
-                            const marker = L.circleMarker([sighting.lat, sighting.lon], {
-                                radius: 5,
-                                fillColor: 'transparent',
-                                color: '#000',
-                                weight: 1
-                            }).addTo(heatmapMarkerLayer);
-
-                            marker.on('click', () => {
-                                // Fetch detailed information for this hotspot
-                                fetchHotspotDetails(sighting);
-                            });
-                        });
-
-                        console.log(`Loaded ${heatData.length} sightings on the map`);
-                    } else {
-                        console.log('No sightings found in the current map bounds');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching or processing bird sightings:', error);
-                });
-            }
-
-            // Fetch details for a specific hotspot
-            function fetchHotspotDetails(sighting) {
-                // Create a popup with loading state
-                const popup = L.popup()
-                    .setLatLng([sighting.lat, sighting.lon])
-                    .setContent('<div>Loading hotspot details...</div>')
-                    .openOn(map);
-
-                // Fetch detailed information about the hotspot
-                fetch('/birds/get_hotspot_details', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        lat: sighting.lat,
-                        lon: sighting.lon,
-                        species: currentSpeciesFilter
-                    }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Format the popup content
-                    const content = `
-                        <div class="hotspot-details">
-                            <h3>Hotspot Details</h3>
-                            <p><strong>Location:</strong> ${sighting.lat.toFixed(4)}, ${sighting.lon.toFixed(4)}</p>
-                            <p><strong>Species Observed:</strong> ${data.species_count || 'No species data'}</p>
-                            <p><strong>Total Observations:</strong> ${data.total_observations || 'N/A'}</p>
-                        </div>
-                    `;
-
-                    // Update the popup with detailed content
-                    popup.setContent(content);
-                })
-                .catch(error => {
-                    console.error('Error fetching hotspot details:', error);
-                    popup.setContent('<div>Error loading hotspot details</div>');
-                });
-            }
-
-            // Dark/Light Mode Toggle
-            function toggleTheme() {
-                isDarkMode = !isDarkMode;
-                document.body.classList.toggle('dark-mode');
-                themeToggleButton.textContent = isDarkMode ? '🌞' : '🌙';
-                map.eachLayer((layer) => {
-                    if (layer instanceof L.TileLayer) {
-                        map.removeLayer(layer);
-                    }
-                });
-                getCustomTileLayer(isDarkMode).addTo(map);
-                loadHeatMap(currentSpeciesFilter); // Reload heatmap after theme switch
-            }
-
-            themeToggleButton.addEventListener('click', toggleTheme);
-
-            locateMeButton.addEventListener('click', () => {
-                map.locate({ setView: true, maxZoom: 16 });
-            });
-
-            markObservationButton.addEventListener('click', () => {
-                alert('Mark an observation on the map.');
-            });
-
-            initializeMap();
+        // Update heatmap on map move or zoom
+        map.on('moveend', () => {
+            loadHeatMap(currentSpeciesFilter);
         });
+
+        // Region Selection Control
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false,
+                polyline: false,
+                circle: false,
+                marker: false,
+                circlemarker: false,
+                rectangle: {
+                    shapeOptions: {
+                        color: '#ff0000'
+                    }
+                }
+            }
+        });
+
+        map.addControl(drawControl);
+
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const bounds = layer.getBounds();
+            selectedRegion = {
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest()
+            };
+
+            // Remove any existing region layers
+            map.eachLayer((layer) => {
+                if (layer instanceof L.Rectangle) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Add the region to the map
+            layer.addTo(map);
+
+            // Create region statistics button
+            const regionStatsButton = document.createElement('button');
+            regionStatsButton.textContent = 'Region Statistics';
+            regionStatsButton.classList.add('map-control-button');
+            regionStatsButton.id = 'region-stats-button';
+            regionStatsButton.addEventListener('click', () => {
+                // Redirect to stats page with region parameters
+                const params = new URLSearchParams(selectedRegion);
+                window.location.href = `/birds/stats?${params.toString()}`;
+            });
+
+            // Add the button near the map controls
+            const mapControls = document.querySelector('.map-controls');
+            mapControls.appendChild(regionStatsButton);
+        });
+
+        return map;
+    }
+
+    // Custom Tile Layer for Theme-Matching
+    function getCustomTileLayer(isDark) {
+        if (isDark) {
+            return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                minZoom: 2
+            });
+        } else {
+            return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 19,
+                minZoom: 2
+            });
+        }
+    }
+
+    // Species Autocomplete
+    $(speciesSearch).autocomplete({
+        source: '/birds/search_species',
+        minLength: 2,
+        select: function(event, ui) {
+            if (ui.item) {
+                currentSpeciesFilter = ui.item.value;
+                loadHeatMap(currentSpeciesFilter);
+            }
+        }
+    });
+
+    // Clear species filter
+    clearSpeciesButton.addEventListener('click', () => {
+        speciesSearch.value = '';
+        currentSpeciesFilter = null;
+        loadHeatMap(); // Reload the heatmap without any species filter
+    });
+
+    // Fetch and Load Heatmap Data
+    function loadHeatMap(selectedSpecies = null) {
+        const bounds = map.getBounds();
+        const mapBounds = {
+            north: bounds.getNorth(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            west: bounds.getWest(),
+            species: selectedSpecies
+        };
+
+        fetch('/birds/get_bird_sightings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mapBounds),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Check for any error in the response
+            if (data.error) {
+                console.error('Server returned an error:', data.error);
+                return;
+            }
+
+            const sightings = data.sightings || [];
+
+            // Clear existing layers
+            if (heatmapLayer) {
+                map.removeLayer(heatmapLayer);
+            }
+
+            heatmapMarkerLayer.clearLayers();
+
+            // Validate the sightings data
+            const heatData = sightings
+                .filter(sighting =>
+                    sighting &&
+                    typeof sighting.lat === 'number' &&
+                    typeof sighting.lon === 'number'
+                )
+                .map(sighting => [
+                    sighting.lat,
+                    sighting.lon,
+                    sighting.intensity || 1
+                ]);
+
+            // Only create heatmap if we have data
+            if (heatData.length > 0) {
+                heatmapLayer = L.heatLayer(heatData, {
+                    radius: 25,
+                    blur: 15,
+                    maxZoom: 10,
+                    max: Math.max(...heatData.map(item => item[2])),
+                    gradient: {
+                        0.4: 'blue',
+                        0.65: 'lime',
+                        0.8: 'yellow',
+                        1: 'red'
+                    }
+                }).addTo(map);
+
+                // Add clickable markers for hotspots
+                sightings.forEach(sighting => {
+                    const marker = L.circleMarker([sighting.lat, sighting.lon], {
+                        radius: 5,
+                        fillColor: 'transparent',
+                        color: '#000',
+                        weight: 1
+                    }).addTo(heatmapMarkerLayer);
+
+                    marker.on('click', () => {
+                        // Fetch detailed information for this hotspot
+                        fetchHotspotDetails(sighting);
+                    });
+                });
+
+                console.log(`Loaded ${heatData.length} sightings on the map`);
+            } else {
+                console.log('No sightings found in the current map bounds');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching or processing bird sightings:', error);
+        });
+    }
+
+    // Fetch details for a specific hotspot
+    function fetchHotspotDetails(sighting) {
+        // Create a popup with loading state
+        const popup = L.popup()
+            .setLatLng([sighting.lat, sighting.lon])
+            .setContent('<div>Loading hotspot details...</div>')
+            .openOn(map);
+
+        // Fetch detailed information about the hotspot
+        fetch('/birds/get_hotspot_details', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat: sighting.lat,
+                lon: sighting.lon,
+                species: currentSpeciesFilter
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Format the popup content
+            const content = `
+                <div class="hotspot-details">
+                    <h3>Hotspot Details</h3>
+                    <p><strong>Location:</strong> ${sighting.lat.toFixed(4)}, ${sighting.lon.toFixed(4)}</p>
+                    <p><strong>Species Observed:</strong> ${data.species_count || 'No species data'}</p>
+                    <p><strong>Total Observations:</strong> ${data.total_observations || 'N/A'}</p>
+                </div>
+            `;
+
+            // Update the popup with detailed content
+            popup.setContent(content);
+        })
+        .catch(error => {
+            console.error('Error fetching hotspot details:', error);
+            popup.setContent('<div>Error loading hotspot details</div>');
+        });
+    }
+
+    // Dark/Light Mode Toggle
+    function toggleTheme() {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('dark-mode');
+        themeToggleButton.textContent = isDarkMode ? '🌞' : '🌙';
+        map.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer) {
+                map.removeLayer(layer);
+            }
+        });
+        getCustomTileLayer(isDarkMode).addTo(map);
+        loadHeatMap(currentSpeciesFilter); // Reload heatmap after theme switch
+    }
+
+    themeToggleButton.addEventListener('click', toggleTheme);
+
+    locateMeButton.addEventListener('click', () => {
+        map.locate({ setView: true, maxZoom: 16 });
+    });
+
+    markObservationButton.addEventListener('click', () => {
+        alert('Mark an observation on the map.');
+    });
+
+    initializeMap();
+});
     </script>
 </body>
 </html>
