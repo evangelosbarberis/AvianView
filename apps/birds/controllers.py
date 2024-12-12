@@ -208,6 +208,7 @@ def search_species():
 @action("submit_checklist", method=["POST"])
 @action.uses(db)
 def submit_checklist():
+    
     return ChecklistManager.submit_checklist(request.json)
 
 @action('delete_checklist/<checklist_id>', method=["DELETE"])

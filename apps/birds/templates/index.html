@@ -26,6 +26,7 @@
             --dark-dropdown-bg: #4a6b4a;
             --dark-dropdown-text-color: #d0d0d0;
         }
+        
 
         body {
             font-family: 'Arial', sans-serif;
@@ -199,17 +200,18 @@
 
         /* jQuery UI Autocomplete Styling */
         .ui-autocomplete {
-            max-height: 300px; /* Ensure a scrollable dropdown if items exceed height */
-            overflow-y: auto; /* Allow vertical scrolling */
+            max-height: 300px; /* Scrollable dropdown if items exceed height */
+            overflow-y: auto; /* Enable vertical scrolling */
             overflow-x: hidden; /* Prevent horizontal overflow */
-            position: absolute; /* Ensure proper positioning relative to the input */
-            z-index: 10000; /* Ensure it's above all other elements */
-            background-color: white; /* Improve visibility */
-            border: 1px solid #ccc; /* Define dropdown border */
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
-            margin-top: 5px; /* Slight separation from the input field */
+            position: absolute; /* Ensure proper positioning relative to input */
+            z-index: 1050; /* Make sure it's above all other elements */
+            background-color: white; /* Set visible background */
+            border: 1px solid #ccc; /* Add a visible border */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add subtle shadow for focus */
+            margin-top: 5px; /* Add separation from input field */
             border-radius: 5px; /* Smooth edges for aesthetics */
         }
+
 
 
         
@@ -352,7 +354,22 @@
 
     // Species Autocomplete
     $(speciesSearch).autocomplete({
-        source: '/birds/search_species',
+        source: function(request, response) {
+            $.ajax({
+                url: '/birds/search_species',
+                dataType: 'json',
+                data: { q: request.term },
+                success: function(data) {
+                    // Map the species names for the autocomplete
+                    response(data.species.map(function(item) {
+                        return {
+                            label: item.COMMON_NAME,  // What's displayed in the dropdown
+                            value: item.COMMON_NAME   // What's selected
+                        };
+                    }));
+                }
+            });
+        },
         minLength: 2,
         select: function(event, ui) {
             if (ui.item) {
@@ -362,12 +379,20 @@
         }
     });
 
-    // Clear species filter
     clearSpeciesButton.addEventListener('click', () => {
-        speciesSearch.value = '';
+    // Clear the species filter
         currentSpeciesFilter = null;
-        loadHeatMap(); // Reload the heatmap without any species filter
+
+        // Clear the search input field
+        speciesSearch.value = '';
+
+        // Reload the heatmap without any species filter
+        loadHeatMap();
+
+        // Provide visual feedback (optional)
+        console.log('Species filter cleared');
     });
+
 
     // Fetch and Load Heatmap Data
     function loadHeatMap(selectedSpecies = null) {
