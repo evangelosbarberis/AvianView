@@ -6,10 +6,8 @@
     <title>AvianView</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <!-- Heatmap plugin -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css">
-    
     <style>
         :root {
             --bg-color: #556b2f;
@@ -70,13 +68,8 @@
         }
 
         .map-container {
-            background-color: var(--map-bg);
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            margin-bottom: 20px;
-            transition: background-color 0.3s ease;
             position: relative;
+            z-index: 1; /* Ensure it's below the autocomplete */
         }
 
         body.dark-mode .map-container {
@@ -196,7 +189,9 @@
         .ui-autocomplete {
             max-height: 200px;
             overflow-y: auto;
-            z-index: 1001;
+            overflow-x: hidden; /* Prevent horizontal scrollbar */
+            z-index: 2000; /* Ensure it appears above other elements */
+            position: absolute; /* Ensure it positions correctly */
         }
     </style>
 </head>
@@ -205,7 +200,6 @@
         <div class="logo-container">
             <img src="/birds/static/Images/logo.png" alt="AvianView Logo" class="logo">
         </div>
-
         <div class="map-container">
             <div id="map"></div>
             <div class="species-selector">
@@ -221,14 +215,12 @@
                 </button>
             </div>
         </div>
-
         <div class="nav-buttons">
             <a href="/birds/add_checklist" class="nav-button">Enter Checklist</a>
             <a href="/birds/stats" class="nav-button">My Birding Stats</a>
             <a href="/birds/location" class="nav-button">Location Details</a>
         </div>
     </div>
-
     <button class="theme-toggle" id="theme-toggle">🌙</button>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -236,7 +228,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const themeToggleButton = document.getElementById('theme-toggle');
@@ -253,13 +244,13 @@
             function initializeMap() {
                 map = L.map('map').setView([0, 0], 3);
                 getCustomTileLayer(isDarkMode).addTo(map);
-                
+
                 // Create a layer group for markers
                 heatmapMarkerLayer = L.layerGroup().addTo(map);
-                
+
                 // Initial heatmap load immediately
                 loadHeatMap();
-                
+
                 map.on('moveend', loadHeatMap);
 
                 // Region Selection Control
@@ -277,6 +268,7 @@
                         }
                     }
                 });
+
                 map.addControl(drawControl);
 
                 map.on(L.Draw.Event.CREATED, function (e) {
@@ -384,23 +376,24 @@
                     }
 
                     const sightings = data.sightings || [];
-                    
+
                     // Clear existing layers
                     if (heatmapLayer) {
                         map.removeLayer(heatmapLayer);
                     }
+
                     heatmapMarkerLayer.clearLayers();
 
                     // Validate the sightings data
                     const heatData = sightings
-                        .filter(sighting => 
-                            sighting && 
-                            typeof sighting.lat === 'number' && 
+                        .filter(sighting =>
+                            sighting &&
+                            typeof sighting.lat === 'number' &&
                             typeof sighting.lon === 'number'
                         )
                         .map(sighting => [
-                            sighting.lat, 
-                            sighting.lon, 
+                            sighting.lat,
+                            sighting.lon,
                             sighting.intensity || 1
                         ]);
 
@@ -473,7 +466,7 @@
                             <p><strong>Total Observations:</strong> ${data.total_observations || 'N/A'}</p>
                         </div>
                     `;
-                    
+
                     // Update the popup with detailed content
                     popup.setContent(content);
                 })
@@ -488,21 +481,21 @@
                 isDarkMode = !isDarkMode;
                 document.body.classList.toggle('dark-mode');
                 themeToggleButton.textContent = isDarkMode ? '🌞' : '🌙';
-
                 map.eachLayer((layer) => {
                     if (layer instanceof L.TileLayer) {
                         map.removeLayer(layer);
                     }
                 });
-
                 getCustomTileLayer(isDarkMode).addTo(map);
-                loadHeatMap(currentSpeciesFilter);  // Reload heatmap after theme switch
+                loadHeatMap(currentSpeciesFilter); // Reload heatmap after theme switch
             }
 
             themeToggleButton.addEventListener('click', toggleTheme);
+
             locateMeButton.addEventListener('click', () => {
                 map.locate({ setView: true, maxZoom: 16 });
             });
+
             markObservationButton.addEventListener('click', () => {
                 alert('Mark an observation on the map.');
             });
