@@ -242,3 +242,29 @@ success!
 success!
 success!
 success!
+success!
+success!
+success!
+success!
+timestamp: 2024-12-11T23:21:12.482159
+ALTER TABLE "species" ADD "scientific_name" CHAR(512);
+timestamp: 2024-12-11T23:21:12.484987
+ALTER TABLE "species" ADD "conservation_status" CHAR(512);
+success!
+timestamp: 2024-12-11T23:21:12.486864
+ALTER TABLE "sightings" ADD "observer_email" CHAR(512);
+timestamp: 2024-12-11T23:21:12.487597
+ALTER TABLE "sightings" ADD "observation_time" TIMESTAMP;
+success!
+timestamp: 2024-12-11T23:21:12.491026
+ALTER TABLE "checklist" ADD "notes" TEXT;
+success!
+timestamp: 2024-12-11T23:21:12.493459
+ALTER TABLE "my_checklist" ADD "user_email" CHAR(512);
+success!
+timestamp: 2024-12-11T23:21:12.496852
+ALTER TABLE "hotspots" ADD "popularity_score" INTEGER;
+success!
+success!
+success!
+success!
