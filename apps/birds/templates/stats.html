@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Statistics</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
             --bg-color: #556b2f;
@@ -65,6 +66,19 @@
             max-height: 70vh;
             overflow-y: auto;
         }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -107,23 +121,45 @@
 
         <!-- Species Details Visualization -->
         <div v-if="selectedSpecies" class="box">
-            <h2 class="subtitle">Details for {{ selectedSpecies.common_name }}</h2>
+            <h2 class="subtitle">Details for {{ selectedSpecies.COMMON_NAME }}</h2>
+
+            <!-- Loading Spinner -->
+            <div v-if="isLoading" class="has-text-centered">
+                <div class="spinner"></div>
+                <p>Loading statistics...</p>
+            </div>
+
+            <!-- Error Message -->
+            <div v-else-if="error" class="notification is-danger">
+                {{ error }}
+            </div>
 
             <!-- Visualization Placeholder -->
             <div class="content">
-                <p><strong>Times Observed:</strong> {{ selectedSpecies.timesObserved }}</p>
+                <p><strong>Times Observed:</strong> {{ selectedSpecies.OBSERVATION_COUNT }}</p>
                 <p><strong>Locations:</strong></p>
                 <div class="map-placeholder">[Map Placeholder]</div>
             </div>
         </div>
 
-        <!-- Trend Visualization -->
-        <div class="box">
-            <h2 class="subtitle">Bird-Watching Trends</h2>
-
-            <!--Chart Placeholder-->
-            <div class="chart-placeholder">[Chart Placeholder]</div>
-        </div>
+        <!-- Species Statistics -->
+            <div v-else-if="speciesStatistics" class="content">
+                <h3>Observation Statistics</h3>
+                <table class="table is-striped is-fullwidth">
+                    <tr>
+                        <th>Total Observations</th>
+                        <td>{{ speciesStatistics.total_observations }}</td>
+                    </tr>
+                    <tr>
+                        <th>First Observed</th>
+                        <td>{{ speciesStatistics.first_observation }}</td>
+                    </tr>
+                    <tr>
+                        <th>Last Observed</th>
+                        <td>{{ speciesStatistics.last_observation }}</td>
+                    </tr>
+                </table>
+            </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>

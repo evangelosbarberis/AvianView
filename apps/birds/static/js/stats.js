@@ -5,6 +5,9 @@ const app = Vue.createApp({
             speciesList: [], 
             filteredSpecies: [],
             selectedSpecies: null,
+            speciesStatistics: null,
+            isLoading: false,
+            error: null
         };
     },
     methods: {
@@ -12,7 +15,10 @@ const app = Vue.createApp({
             // Set the search query to the selected species' name
             this.searchQuery = species.COMMON_NAME;
             
-            // Fetch additional details for the selected species
+            // Fetch statistics for the selected species
+            this.fetchSpeciesStatistics(species.COMMON_NAME);
+            
+            // Set the selected species
             this.selectedSpecies = species;
             
             // Trigger species search to filter the list
@@ -27,13 +33,31 @@ const app = Vue.createApp({
                 this.filteredSpecies = this.speciesList;
             } catch (error) {
                 console.error('Error fetching species data:', error);
+                this.error = 'Failed to fetch species data';
             }
         },
-        // countSpeciesObservations(speciesName) {
-        //     return this.speciesList.filter(s => 
-        //         s.common_name.toLowerCase() === speciesName.toLowerCase()
-        //     ).length;
-        // }
+        async fetchSpeciesStatistics(speciesName) {
+            this.isLoading = true;
+            this.error = null;
+            this.speciesStatistics = null;
+
+            try {
+                const response = await axios.get('/birds/get_region_statistics', {
+                    params: { species: speciesName }
+                });
+
+                if (response.data.species_summary && response.data.species_summary.length > 0) {
+                    this.speciesStatistics = response.data.species_summary[0];
+                } else {
+                    this.error = 'No statistics found for this species';
+                }
+            } catch (error) {
+                console.error('Error fetching species statistics:', error);
+                this.error = 'Failed to fetch species statistics';
+            } finally {
+                this.isLoading = false;
+            }
+        }
     },
     created() {
         // Fetch all species initially
