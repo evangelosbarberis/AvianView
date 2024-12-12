@@ -9,15 +9,6 @@ class ChecklistManager:
 
     @classmethod
     def get_checklists(cls, table=db.checklist):
-        """
-        Retrieve checklists from a specified table
-        
-        Args:
-            table (DAL table, optional): Table to retrieve checklists from. Defaults to db.checklist
-        
-        Returns:
-            dict: Dictionary with checklists or error
-        """
         try:
             checklists = db(table).select().as_list()
             return dict(checklists=checklists)
@@ -26,15 +17,6 @@ class ChecklistManager:
 
     @classmethod
     def submit_checklist(cls, data):
-        """
-        Submit a new checklist with associated species sightings
-        
-        Args:
-            data (dict): Checklist and species data
-        
-        Returns:
-            dict: Status of the submission
-        """
         try:
             checklist_data = {
                 "COMMON_NAME": str(data.get("speciesName")),
@@ -60,17 +42,6 @@ class ChecklistManager:
 
     @classmethod
     def modify_checklist(cls, checklist_id, action_type, data=None):
-        """
-        Centralized method for editing or deleting checklists
-        
-        Args:
-            checklist_id (int): ID of the checklist
-            action_type (str): 'edit' or 'delete'
-            data (dict, optional): Data for editing
-        
-        Returns:
-            dict: Result of the operation
-        """
         try:
             checklist = db.my_checklist(checklist_id)
             if not checklist:
@@ -98,7 +69,62 @@ class ChecklistManager:
             db.rollback()
             return dict(status="error", message=f"Error processing checklist: {str(e)}")
 
-# Route Handlers
+# New Endpoint for Heat Map
+@action("get_bird_sightings", method=["POST"])
+@action.uses(db)
+def get_bird_sightings():
+    try:
+        # Parse the incoming bounds from the request
+        bounds = request.json
+        
+        # Validate bounds
+        north = bounds.get('north')
+        south = bounds.get('south')
+        east = bounds.get('east')
+        west = bounds.get('west')
+        
+        if not all([north, south, east, west]):
+            return dict(error="Invalid bounds", sightings=[])
+        
+        # Query to get sightings within the map bounds
+        query = (
+            (db.my_checklist.LATITUDE <= north) & 
+            (db.my_checklist.LATITUDE >= south) & 
+            (db.my_checklist.LONGITUDE <= east) & 
+            (db.my_checklist.LONGITUDE >= west)
+        )
+        
+        # Join with sightings to get species information
+        observations = db(query).select(
+            db.my_checklist.LATITUDE, 
+            db.my_checklist.LONGITUDE, 
+            db.sightings.COMMON_NAME,
+            db.sightings.OBSERVATION_COUNT,
+            left=db.sightings.on(db.my_checklist.id == db.sightings.SAMPLING_EVENT_IDENTIFIER)
+        )
+        
+        # Process observations into heat map format
+        sightings = []
+        for obs in observations:
+            # Calculate intensity based on observation count
+            try:
+                count = int(obs.sightings.OBSERVATION_COUNT or 1)
+            except (ValueError, TypeError):
+                count = 1
+            
+            sightings.append({
+                'lat': obs.my_checklist.LATITUDE,
+                'lon': obs.my_checklist.LONGITUDE,
+                'intensity': min(count, 10)  # Cap intensity for visual clarity
+            })
+        
+        return dict(sightings=sightings)
+    
+    except Exception as e:
+        logger.error(f"Error in get_bird_sightings: {str(e)}")
+        return dict(error=str(e), sightings=[])
+
+# Existing route handlers remain the same...
 @action('index')
 @action.uses('index.html', db, auth, ChecklistManager.url_signer)
 def index():
@@ -166,3 +192,23 @@ def stats():
 @action.uses('location.html', db, auth)
 def location():
     return dict()
+
+@action("get_hotspots", method=["GET"])
+@action.uses(db)
+def get_hotspots():
+    hotspots = db(db.hotspots).select().as_list()
+    return dict(hotspots=hotspots)
+
+@action("get_observations", method=["GET"])
+@action.uses(db)
+def get_observations():
+    species = request.params.get("species")
+    if species:
+        observations = db((db.sightings.COMMON_NAME == species) & (db.checklist.id == db.sightings.SAMPLING_EVENT_IDENTIFIER)).select(
+            db.checklist.LATITUDE, db.checklist.LONGITUDE, db.sightings.OBSERVATION_COUNT
+        ).as_list()
+    else:
+        observations = db((db.checklist.id == db.sightings.SAMPLING_EVENT_IDENTIFIER)).select(
+            db.checklist.LATITUDE, db.checklist.LONGITUDE, db.sightings.OBSERVATION_COUNT
+        ).as_list()
+    return dict(observations=observations)

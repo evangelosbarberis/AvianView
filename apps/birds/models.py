@@ -7,15 +7,6 @@ from pydal.validators import *
 class DataSeeder:
     @staticmethod
     def _read_csv(file_path):
-        """
-        Helper method to safely read CSV files
-        
-        Args:
-            file_path (str): Path to the CSV file
-        
-        Returns:
-            list: List of dictionaries containing CSV data
-        """
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}")
             return []
@@ -29,14 +20,6 @@ class DataSeeder:
 
     @classmethod
     def seed_table(cls, table, csv_path, mapping_func):
-        """
-        Generic method to seed database tables
-        
-        Args:
-            table: Database table to seed
-            csv_path (str): Path to the CSV file
-            mapping_func (callable): Function to map CSV rows to database rows
-        """
         # Clear existing data before seeding
         db(table.id > 0).delete()
         db.commit()
@@ -99,9 +82,18 @@ def define_database_tables():
             Field('DURATION_MINUTES', 'double')
         )
 
+    # Hotspots table
+    if 'hotspots' not in db.tables():
+        db.define_table('hotspots',
+            Field('name', 'string'),
+            Field('description', 'string'),
+            Field('latitude', 'double'),
+            Field('longitude', 'double')
+        )
+
 def seed_database():
     base_path = os.path.join(os.getcwd(), "apps/birds/uploads")
-    
+
     # Seeding configurations
     seeding_config = [
         {
@@ -130,8 +122,26 @@ def seed_database():
                 'OBSERVER_ID': row['OBSERVER_ID'],
                 'DURATION_MINUTES': float(row['DURATION_MINUTES'])
             }
+        },
+        {
+            'table': db.hotspots,
+            'file': os.path.join(base_path, 'hotspots.csv'),
+            'mapper': lambda row: {
+                'name': row['name'],
+                'description': row['description'],
+                'latitude': float(row['latitude']),
+                'longitude': float(row['longitude'])
+            }
         }
     ]
+
+    # Seed tables
+    for config in seeding_config:
+        DataSeeder.seed_table(
+            config['table'], 
+            config['file'], 
+            config['mapper']
+        )
     
     # Seed tables
     for config in seeding_config:

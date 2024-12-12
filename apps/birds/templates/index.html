@@ -6,7 +6,9 @@
     <title>AvianView</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    
+    <!-- Heatmap plugin -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.css" />
+
     
     <style>
         :root {
@@ -236,29 +238,27 @@
         </div>
     </div>
 
-    <!-- Sign-in Dropdown -->
-    <div class="dropdown" id="sign-in-dropdown">
-        <button class="nav-button">Sign In</button>
-        <div class="dropdown-content">
-            <a href="#">Sign in with Google</a>
-            <a href="#">Sign in with Facebook</a>
-            <a href="#">Sign in with Email</a>
-        </div>
-    </div>
-
     <button class="theme-toggle" id="theme-toggle">🌙</button>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const themeToggleButton = document.getElementById('theme-toggle');
             const locateMeButton = document.getElementById('locate-me');
             const markObservationButton = document.getElementById('mark-observation');
-            const signInDropdown = document.getElementById('sign-in-dropdown');
-            const signInButton = signInDropdown.querySelector('button');
 
-            let map, currentMarker;
+            let map, heatmapLayer;
             let isDarkMode = false;
+
+            // Map Initialization
+            function initializeMap() {
+                map = L.map('map').setView([0, 0], 3);
+                getCustomTileLayer(isDarkMode).addTo(map);
+                loadHeatMap();
+                map.on('moveend', loadHeatMap);  // Update heatmap when map moves
+                return map;
+            }
 
             // Custom Tile Layer for Theme-Matching
             function getCustomTileLayer(isDark) {
@@ -277,51 +277,76 @@
                 }
             }
 
-            // Map Initialization
-            function initializeMap() {
-                map = L.map('map').setView([0, 0], 3);
-                getCustomTileLayer(isDarkMode).addTo(map);
-                loadHotspots();
-                return map;
-            }
+            // Fetch and Load Heatmap Data
+            function loadHeatMap() {
+                const bounds = map.getBounds();
+                const mapBounds = {
+                    north: bounds.getNorth(),
+                    south: bounds.getSouth(),
+                    east: bounds.getEast(),
+                    west: bounds.getWest()
+                };
 
-            function loadHotspots() {
-                fetch('/birds/get_hotspots')
-                    .then(response => response.json())
-                    .then(data => {
-                        const hotspots = data.hotspots;
-                        hotspots.forEach(hotspot => {
-                            const marker = L.marker([hotspot.latitude, hotspot.longitude])
-                                .addTo(map)
-                                .bindPopup(`<strong>${hotspot.name}</strong><br>${hotspot.description || ''}`);
-                        });
-                    })
-                    .catch(error => console.error('Error fetching hotspots:', error));
-            }
-
-            // Locate Me Functionality
-            function locateUser() {
-                map.locate({setView: true, maxZoom: 16});
-                map.on('locationfound', (e) => {
-                    if (currentMarker) {
-                        map.removeLayer(currentMarker);
+                fetch('/birds/get_bird_sightings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mapBounds),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
                     }
-                    currentMarker = L.marker(e.latlng).addTo(map).bindPopup('You are here').openPopup();
-                });
-                map.on('locationerror', (e) => {
-                    alert('Unable to get your location. Please enable location services.');
-                });
-            }
-
-            // Mark Observation Functionality
-            function markObservation() {
-                map.off('click');
-                alert('Click on the map to mark your bird observation point');
-                map.on('click', (e) => {
-                    if (currentMarker) {
-                        map.removeLayer(currentMarker);
+                    return response.json();
+                })
+                .then(data => {
+                    // Check for any error in the response
+                    if (data.error) {
+                        console.error('Server returned an error:', data.error);
+                        return;
                     }
-                    currentMarker = L.marker(e.latlng).addTo(map).bindPopup('Bird Observation Point').openPopup();
+
+                    const sightings = data.sightings || [];
+                    
+                    // Validate the sightings data
+                    const heatData = sightings
+                        .filter(sighting => 
+                            sighting && 
+                            typeof sighting.lat === 'number' && 
+                            typeof sighting.lon === 'number'
+                        )
+                        .map(sighting => [
+                            sighting.lat, 
+                            sighting.lon, 
+                            sighting.intensity || 1
+                        ]);
+
+                    // Remove the old heatmap layer if exists
+                    if (heatmapLayer) {
+                        map.removeLayer(heatmapLayer);
+                    }
+
+                    // Only create heatmap if we have data
+                    if (heatData.length > 0) {
+                        heatmapLayer = L.heatLayer(heatData, {
+                            radius: 25,
+                            blur: 15,
+                            maxZoom: 10,
+                            max: Math.max(...heatData.map(item => item[2])),
+                            gradient: {
+                                0.4: 'blue',
+                                0.65: 'lime',
+                                0.8: 'yellow',
+                                1: 'red'
+                            }
+                        }).addTo(map);
+
+                        console.log(`Loaded ${heatData.length} sightings on the map`);
+                    } else {
+                        console.log('No sightings found in the current map bounds');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching or processing bird sightings:', error);
                 });
             }
 
@@ -338,17 +363,18 @@
                 });
 
                 getCustomTileLayer(isDarkMode).addTo(map);
+                loadHeatMap();  // Reload heatmap after theme switch
             }
 
-            // Sign In Dropdown Toggle
-            signInButton.addEventListener('click', () => {
-                signInDropdown.classList.toggle('active');
+            themeToggleButton.addEventListener('click', toggleTheme);
+            locateMeButton.addEventListener('click', () => {
+                map.locate({ setView: true, maxZoom: 16 });
+            });
+            markObservationButton.addEventListener('click', () => {
+                alert('Mark an observation on the map.');
             });
 
             initializeMap();
-            themeToggleButton.addEventListener('click', toggleTheme);
-            locateMeButton.addEventListener('click', locateUser);
-            markObservationButton.addEventListener('click', markObservation);
         });
     </script>
 </body>
