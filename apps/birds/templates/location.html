@@ -174,17 +174,30 @@
         // Fetch comprehensive user data
         async function fetchAllData() {
             try {
-                // Fetch all species 
-                const speciesResponse = await fetch('/birds/search_species');
+                // Fetch all species
+                const speciesResponse = await fetch('/birds/get_all_species');
                 const speciesData = await speciesResponse.json();
-    
-                // Fetch region statistics to get comprehensive observations
-                const regionResponse = await fetch('/birds/get_region_statistics');
-                const regionData = await regionData.json();
-    
-                return { 
-                    species: speciesData.species, 
-                    observations: regionData.species_summary || [] 
+
+                const observations = [];
+                for (const sp of speciesData.species) {
+                    // Fetch detailed statistics for each species
+                    const obsResponse = await fetch('/birds/get_species_statistics', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ species: sp.COMMON_NAME })
+                    });
+                    const obsData = await obsResponse.json();
+                    observations.push({
+                        ...sp,
+                        ...obsData
+                    });
+                }
+
+                return {
+                    species: speciesData.species,
+                    observations,
                 };
             } catch (error) {
                 console.error('Error fetching comprehensive data:', error);
@@ -197,32 +210,38 @@
             const speciesList = document.getElementById('species-list');
             const initialMessage = document.getElementById('initial-message');
             speciesList.innerHTML = '';
-    
+
             // Create a map of observations for quick lookup
             const observationMap = observations.reduce((acc, obs) => {
-                acc[obs.species] = obs;
+                acc[obs.COMMON_NAME] = obs;
                 return acc;
             }, {});
-    
+
             species.forEach(sp => {
                 const speciesCard = document.createElement('div');
                 speciesCard.className = 'card species-card';
                 speciesCard.dataset.species = sp.COMMON_NAME;
-    
+
                 // Get observation data for this species
                 const speciesObservation = observationMap[sp.COMMON_NAME] || {};
-    
+
+                // Prepare detailed species information
                 speciesCard.innerHTML = `
                     <h3>${sp.COMMON_NAME}</h3>
                     <p>Scientific Name: ${sp.scientific_name || 'N/A'}</p>
                     <p>Conservation Status: ${sp.conservation_status || 'Unknown'}</p>
-                    <p>Total Observations: ${speciesObservation.total_count || 0}</p>
-                    <p>Observation Percentage: ${speciesObservation.percentage ? speciesObservation.percentage.toFixed(2) + '%' : '0%'}</p>
+                    <p>Total Observations: ${speciesObservation.total_observations || 0}</p>
+                    <p>Observation Percentage: ${speciesObservation.total_observations ? 
+                        ((speciesObservation.total_observations / speciesObservation.total_species_observations * 100) || 0).toFixed(2) + '%' : 
+                        '0%'}</p>
+                    <p>Top Hotspot: ${speciesObservation.top_hotspot ? 
+                        `${speciesObservation.top_hotspot.location} (${speciesObservation.top_hotspot.count} observations)` : 
+                        'No specific hotspot'}</p>
                 `;
                 speciesCard.addEventListener('click', () => showSpeciesDetails(sp.COMMON_NAME));
                 speciesList.appendChild(speciesCard);
             });
-    
+
             // Toggle visibility based on species list content
             if (species.length > 0) {
                 speciesList.style.display = 'grid';
@@ -239,7 +258,7 @@
             const searchInput = document.getElementById('species-search-input');
             const speciesList = document.getElementById('species-list');
             const initialMessage = document.getElementById('initial-message');
-    
+
             searchInput.addEventListener('input', async (e) => {
                 const searchTerm = e.target.value.trim().toLowerCase();
                 
@@ -249,18 +268,29 @@
                     initialMessage.textContent = 'Start typing to search for bird species';
                     return;
                 }
-    
-                // Fetch species based on search term
+
                 try {
+                    // Fetch species based on search term
                     const response = await fetch(`/birds/search_species?q=${searchTerm}&min_obs=0`);
                     const data = await response.json();
-    
-                    // Fetch region statistics to get observation data
-                    const regionResponse = await fetch('/birds/get_region_statistics');
-                    const regionData = await regionResponse.json();
-    
-                    // Populate species list with search results
-                    populateSpeciesList(data.species, regionData.species_summary || []);
+
+                    // Fetch comprehensive species data including observations
+                    const comprehensiveData = await Promise.all(
+                        data.species.map(async (species) => {
+                            const obsResponse = await fetch('/birds/get_species_statistics', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ species: species.COMMON_NAME })
+                            });
+                            const obsData = await obsResponse.json();
+                            return { ...species, ...obsData };
+                        })
+                    );
+
+                    // Populate species list with comprehensive results
+                    populateSpeciesList(data.species, comprehensiveData);
                 } catch (error) {
                     console.error('Error searching species:', error);
                     speciesList.style.display = 'none';
@@ -277,7 +307,7 @@
             const observationMap = document.getElementById('observation-map');
             modalSpeciesName.textContent = speciesName;
             modal.style.display = 'block';
-    
+
             try {
                 // Fetch hotspot details for the species
                 const response = await fetch('/birds/get_hotspot_details', {
@@ -288,27 +318,27 @@
                     body: JSON.stringify({ species: speciesName })
                 });
                 const data = await response.json();
-    
+
                 // Initialize map
                 if (window.speciesMap) {
                     window.speciesMap.remove();
                 }
                 window.speciesMap = L.map('observation-map').setView([0, 0], 2);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.speciesMap);
-    
+
                 // Plot observations on map
                 data.species_details.forEach(detail => {
                     L.marker([detail.latitude, detail.longitude])
                         .bindPopup(`${speciesName}: ${detail.total_count} observations`)
                         .addTo(window.speciesMap);
                 });
-    
+
                 // Create observations chart
                 const ctx = document.getElementById('species-observations-chart').getContext('2d');
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: data.species_details.map(d => 'Location'),
+                        labels: data.species_details.map(d => `Location (Lat ${d.latitude}, Lon ${d.longitude})`),
                         datasets: [{
                             label: 'Observations',
                             data: data.species_details.map(d => d.total_count),
@@ -320,7 +350,7 @@
                         title: { display: true, text: `${speciesName} Observations` }
                     }
                 });
-    
+
             } catch (error) {
                 console.error('Error fetching species details:', error);
             }

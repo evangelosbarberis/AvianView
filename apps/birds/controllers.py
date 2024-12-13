@@ -111,73 +111,6 @@ class ChecklistManager:
             db.rollback()
             logger.error(f"Checklist modification error: {str(e)}")
             return dict(status="error", message=f"Error processing checklist: {str(e)}")
-        
-    @classmethod
-    def get_species_statistics(cls, species_name):
-        """
-        Retrieve detailed statistics for a specific bird species
-        
-        Args:
-            species_name (str): Common name of the bird species
-        
-        Returns:
-            dict: Comprehensive species statistics
-        """
-        try:
-            # Fetch total observations for the species
-            total_obs_query = db(db.sightings.COMMON_NAME == species_name).select(
-                db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count')
-            )
-            total_observations = total_obs_query[0].total_count if total_obs_query else 0
-
-            # Fetch unique observation locations
-            location_query = db(db.checklist.id.belongs(
-                db(db.sightings.COMMON_NAME == species_name)._select(db.sightings.SAMPLING_EVENT_IDENTIFIER)
-            )).select(
-                db.checklist.LATITUDE, 
-                db.checklist.LONGITUDE, 
-                distinct=True
-            )
-            unique_locations = len(location_query)
-
-            # Fetch observation dates range
-            date_range_query = db(db.sightings.COMMON_NAME == species_name).select(
-                db.checklist.OBSERVATION_DATE.min().with_alias('first_observed'),
-                db.checklist.OBSERVATION_DATE.max().with_alias('last_observed'),
-                left=db.checklist.on(db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.id)
-            )
-            
-            first_observed = date_range_query[0].first_observed if date_range_query else None
-            last_observed = date_range_query[0].last_observed if date_range_query else None
-
-            # Fetch top observation months
-            monthly_obs_query = db(db.sightings.COMMON_NAME == species_name).select(
-                db.checklist.OBSERVATION_DATE.month().with_alias('month'),
-                db.sightings.OBSERVATION_COUNT.sum().with_alias('month_count'),
-                groupby=db.checklist.OBSERVATION_DATE.month(),
-                orderby=~db.sightings.OBSERVATION_COUNT.sum(),
-                left=db.checklist.on(db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.id)
-            )
-
-            top_months = [
-                {
-                    'month': row.month, 
-                    'count': row.month_count
-                } for row in monthly_obs_query[:3]  # Top 3 months
-            ]
-
-            return dict(
-                species_name=species_name,
-                total_observations=total_observations,
-                unique_locations=unique_locations,
-                first_observed=first_observed,
-                last_observed=last_observed,
-                top_observation_months=top_months
-            )
-        
-        except Exception as e:
-            logger.error(f"Error in get_species_statistics: {str(e)}")
-            return dict(error=str(e))
 
 # Bird Sightings and Location Routes
 @action("get_bird_sightings", method=["POST"])
@@ -336,21 +269,80 @@ def get_hotspot_details():
         logger.error(f"Error in get_hotspot_details: {str(e)}")
         return dict(error=str(e), species_count=0, species_details=[], total_observations=0)
     
-@action("get_species_stats", method=["GET"])
-@action.uses(db)
-def get_species_stats():
+@action("get_user_checklist_statistics", method=["GET"])
+@action.uses(db, auth.user)
+def get_user_checklist_statistics():
     """
-    Retrieve statistics for a specific bird species
+    Retrieve comprehensive statistics for a specific user's checklists
     
-    Query parameters:
-    - species: Name of the bird species
+    Returns:
+    - Total observations
+    - Unique species observed
+    - Most frequently observed species
+    - Total checklists created
+    - Date range of observations
     """
-    species_name = request.params.get("species", "").strip()
+    try:
+        # Get current user's email
+        user_email = get_user_email()
+        
+        if not user_email:
+            return dict(error="User not authenticated")
+        
+        # Query my_checklist and sightings tables for user's data
+        query = (db.my_checklist.user_email == user_email)
+        
+        # Aggregate species statistics
+        species_summary = db(query).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME,
+            orderby=~db.sightings.OBSERVATION_COUNT.sum()
+        )
+        
+        # Fetch user's checklists
+        user_checklists = db(query).select(
+            db.my_checklist.OBSERVATION_DATE,
+            orderby=db.my_checklist.OBSERVATION_DATE
+        )
+        
+        # Calculate total observations and unique species
+        total_observations = sum(row.total_count for row in species_summary)
+        unique_species = len(species_summary)
+        total_checklists = len(user_checklists)
+        
+        # Find most frequently observed species
+        most_observed_species = species_summary[0] if species_summary else None
+        
+        # Find date range of observations
+        if user_checklists:
+            first_observation = min(checklist.OBSERVATION_DATE for checklist in user_checklists)
+            last_observation = max(checklist.OBSERVATION_DATE for checklist in user_checklists)
+        else:
+            first_observation = last_observation = None
+        
+        return dict(
+            total_observations=total_observations,
+            unique_species=unique_species,
+            total_checklists=total_checklists,
+            most_observed_species={
+                'name': most_observed_species.sightings.COMMON_NAME if most_observed_species else None,
+                'count': most_observed_species.total_count if most_observed_species else 0
+            },
+            first_observation=first_observation,
+            last_observation=last_observation,
+            species_summary=[
+                {
+                    'species': row.sightings.COMMON_NAME, 
+                    'total_count': row.total_count,
+                    'percentage': (row.total_count / total_observations * 100) if total_observations > 0 else 0
+                } for row in species_summary
+            ]
+        )
     
-    if not species_name:
-        return dict(error="Species name is required")
-    
-    return ChecklistManager.get_species_statistics(species_name)
+    except Exception as e:
+        logger.error(f"Error in get_user_checklist_statistics: {str(e)}")
+        return dict(error=str(e))
 
 # Species and Checklist Routes
 @action("get_species", method=["GET"])
@@ -499,3 +491,59 @@ def stats():
 @action.uses('location.html', db, auth)
 def location():
     return dict()
+@action("get_species_statistics", method=["POST"])
+@action.uses(db)
+def get_species_statistics():
+    """
+    Retrieve comprehensive statistics for a specific species
+    """
+    try:
+        species_name = request.json.get('species')
+        
+        if not species_name:
+            return dict(error="No species specified")
+        
+        # Calculate total species observations
+        total_species_observations = db(
+            (db.sightings.COMMON_NAME == species_name)
+        ).select(
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count')
+        ).first().total_count or 0
+        
+        # Find top hotspot for the species
+        top_hotspot = db(
+            (db.sightings.COMMON_NAME == species_name)
+        ).select(
+            db.checklist.LATITUDE, 
+            db.checklist.LONGITUDE,
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=(db.checklist.LATITUDE, db.checklist.LONGITUDE),
+            orderby=~db.sightings.OBSERVATION_COUNT.sum(),
+            limitby=(1,0)
+        ).first()
+        
+        # Total species observations across all regions
+        total_species_observations_global = db(
+            db.sightings.COMMON_NAME == species_name
+        ).count()
+        
+        # Prepare top hotspot data
+        top_hotspot_data = None
+        if top_hotspot:
+            top_hotspot_data = {
+                'latitude': top_hotspot.checklist.LATITUDE,
+                'longitude': top_hotspot.checklist.LONGITUDE,
+                'location': f"Lat {top_hotspot.checklist.LATITUDE}, Lon {top_hotspot.checklist.LONGITUDE}",
+                'count': top_hotspot.total_count
+            }
+        
+        return dict(
+            species=species_name,
+            total_observations=total_species_observations,
+            total_species_observations=total_species_observations_global,
+            top_hotspot=top_hotspot_data
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_species_statistics: {str(e)}")
+        return dict(error=str(e))
