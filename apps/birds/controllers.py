@@ -269,6 +269,81 @@ def get_hotspot_details():
         logger.error(f"Error in get_hotspot_details: {str(e)}")
         return dict(error=str(e), species_count=0, species_details=[], total_observations=0)
     
+@action("get_user_checklist_statistics", method=["GET"])
+@action.uses(db, auth.user)
+def get_user_checklist_statistics():
+    """
+    Retrieve comprehensive statistics for a specific user's checklists
+    
+    Returns:
+    - Total observations
+    - Unique species observed
+    - Most frequently observed species
+    - Total checklists created
+    - Date range of observations
+    """
+    try:
+        # Get current user's email
+        user_email = get_user_email()
+        
+        if not user_email:
+            return dict(error="User not authenticated")
+        
+        # Query my_checklist and sightings tables for user's data
+        query = (db.my_checklist.user_email == user_email)
+        
+        # Aggregate species statistics
+        species_summary = db(query).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME,
+            orderby=~db.sightings.OBSERVATION_COUNT.sum()
+        )
+        
+        # Fetch user's checklists
+        user_checklists = db(query).select(
+            db.my_checklist.OBSERVATION_DATE,
+            orderby=db.my_checklist.OBSERVATION_DATE
+        )
+        
+        # Calculate total observations and unique species
+        total_observations = sum(row.total_count for row in species_summary)
+        unique_species = len(species_summary)
+        total_checklists = len(user_checklists)
+        
+        # Find most frequently observed species
+        most_observed_species = species_summary[0] if species_summary else None
+        
+        # Find date range of observations
+        if user_checklists:
+            first_observation = min(checklist.OBSERVATION_DATE for checklist in user_checklists)
+            last_observation = max(checklist.OBSERVATION_DATE for checklist in user_checklists)
+        else:
+            first_observation = last_observation = None
+        
+        return dict(
+            total_observations=total_observations,
+            unique_species=unique_species,
+            total_checklists=total_checklists,
+            most_observed_species={
+                'name': most_observed_species.sightings.COMMON_NAME if most_observed_species else None,
+                'count': most_observed_species.total_count if most_observed_species else 0
+            },
+            first_observation=first_observation,
+            last_observation=last_observation,
+            species_summary=[
+                {
+                    'species': row.sightings.COMMON_NAME, 
+                    'total_count': row.total_count,
+                    'percentage': (row.total_count / total_observations * 100) if total_observations > 0 else 0
+                } for row in species_summary
+            ]
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_user_checklist_statistics: {str(e)}")
+        return dict(error=str(e))
+
 # Species and Checklist Routes
 @action("get_species", method=["GET"])
 @action.uses(db)
