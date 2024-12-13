@@ -196,25 +196,27 @@ def get_hotspot_details():
 
         # Use a broader tolerance for matching coordinates
         query = (
-            (db.checklist.LATITUDE >= lat - 0.01) & 
-            (db.checklist.LATITUDE <= lat + 0.01) & 
-            (db.checklist.LONGITUDE >= lon - 0.01) & 
-            (db.checklist.LONGITUDE <= lon + 0.01)
+            (db.my_checklist.LATITUDE >= lat - 0.1) & 
+            (db.my_checklist.LATITUDE <= lat + 0.1) & 
+            (db.my_checklist.LONGITUDE >= lon - 0.1) & 
+            (db.my_checklist.LONGITUDE <= lon + 0.1)
         )
 
-        # Join checklist with sightings
+        # Apply species filter if provided
+        if species:
+            query &= (db.sightings.COMMON_NAME == species)
+
+        # Fetch observations with more comprehensive selection
         observations = db(query).select(
-            db.checklist.SAMPLING_EVENT_IDENTIFIER,
-            db.checklist.LATITUDE, 
-            db.checklist.LONGITUDE,
+            db.my_checklist.SAMPLING_EVENT_IDENTIFIER,
+            db.my_checklist.LATITUDE, 
+            db.my_checklist.LONGITUDE,
             db.sightings.COMMON_NAME, 
             db.sightings.OBSERVATION_COUNT,
-            left=db.sightings.on(db.checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
+            left=db.sightings.on(
+                (db.my_checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
+            )
         )
-
-        # Filter by species if specified
-        if species:
-            observations = observations.find(lambda row: row.sightings.COMMON_NAME == species)
 
         # Prepare detailed species information
         species_details = {}
@@ -227,12 +229,12 @@ def get_hotspot_details():
                     species_details[species_name] = {
                         'total_count': count,
                         'observation_count': 1,
-                        'checklists': set([obs.checklist.SAMPLING_EVENT_IDENTIFIER])
+                        'checklists': {obs.my_checklist.SAMPLING_EVENT_IDENTIFIER}
                     }
                 else:
                     species_details[species_name]['total_count'] += count
                     species_details[species_name]['observation_count'] += 1
-                    species_details[species_name]['checklists'].add(obs.checklist.SAMPLING_EVENT_IDENTIFIER)
+                    species_details[species_name]['checklists'].add(obs.my_checklist.SAMPLING_EVENT_IDENTIFIER)
 
         # Convert to list for easier frontend processing
         formatted_species_details = [

@@ -103,6 +103,7 @@ def define_database_tables():
         db.define_table('my_checklist', 
             Field('user_email', type='string', default=get_user_email),
             Field('SAMPLING_EVENT_IDENTIFIER', type='string'),
+            Field('COMMON_NAME', type='string'),  # Add this line
             Field('LATITUDE', type='double', required=True),
             Field('LONGITUDE', type='double', required=True),
             Field('OBSERVATION_DATE', type='date', required=True),
@@ -160,6 +161,17 @@ def seed_database(base_path=None):
                 'OBSERVATION_COUNT': int(row.get('OBSERVATION_COUNT', 1)),
                 'observer_email': row.get('OBSERVER_EMAIL', ''),
                 'observation_time': row.get('OBSERVATION_TIME', get_time())
+            }
+        },
+        {
+            'table': db.hotspots,
+            'file': os.path.join(base_path, 'hotspots.csv'),  # Add this seeding configuration
+            'mapper': lambda row: {
+                'name': row.get('NAME', ''),
+                'description': row.get('DESCRIPTION', ''),
+                'latitude': float(row.get('LATITUDE', 0)),
+                'longitude': float(row.get('LONGITUDE', 0)),
+                'popularity_score': int(row.get('POPULARITY_SCORE', 0))
             }
         }
     ]

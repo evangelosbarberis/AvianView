@@ -324,6 +324,7 @@
                     url: '/birds/search_species',
                     dataType: 'json',
                     data: { q: request.term },
+
                     success: function(data) {
                         response(data.species.map(function(item) {
                             return {
@@ -446,9 +447,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        lat: sighting.lat,
+                        lat: sighting.lat,  // Ensure these are correct
                         lon: sighting.lon,
-                        species: currentSpeciesFilter
+                        species: currentSpeciesFilter  // Optional species filter
                     }),
                 })
                 .then(response => response.json())
