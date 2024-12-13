@@ -1,4 +1,3 @@
-[[extend 'layout.html']]
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -122,6 +121,12 @@
         .close-modal:hover {
             color: white;
         }
+
+        #initial-message {
+            text-align: center;
+            color: var(--text-color);
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
@@ -133,7 +138,10 @@
             <div class="species-search">
                 <input type="text" id="species-search-input" placeholder="Search species...">
             </div>
-            <div id="species-list" class="species-list">
+            <div id="initial-message">
+                Start typing to search for bird species
+            </div>
+            <div id="species-list" class="species-list" style="display:none;">
                 <!-- Species will be dynamically populated here -->
             </div>
         </div>
@@ -159,60 +167,109 @@
     </div>
 
     <script>
-        // Global variables to store user's data
-        let userSpecies = [];
-        let userObservations = [];
-
-        // Fetch user's checklists and species
-        async function fetchUserData() {
+        // Global variables to store all species data
+        let allSpecies = [];
+        let allObservations = [];
+    
+        // Fetch comprehensive user data
+        async function fetchAllData() {
             try {
-                // Fetch user's checklists
-                const checklistResponse = await fetch('/birds/get_my_checklists');
-                const checklistData = await checklistResponse.json();
-
-                // Fetch species observations
+                // Fetch all species 
                 const speciesResponse = await fetch('/birds/search_species');
                 const speciesData = await speciesResponse.json();
-
-                return { checklists: checklistData.checklists, species: speciesData.species };
+    
+                // Fetch region statistics to get comprehensive observations
+                const regionResponse = await fetch('/birds/get_region_statistics');
+                const regionData = await regionData.json();
+    
+                return { 
+                    species: speciesData.species, 
+                    observations: regionData.species_summary || [] 
+                };
             } catch (error) {
-                console.error('Error fetching user data:', error);
-                return { checklists: [], species: [] };
+                console.error('Error fetching comprehensive data:', error);
+                return { species: [], observations: [] };
             }
         }
-
-        // Populate species list
-        function populateSpeciesList(species) {
+    
+        // Populate species list with comprehensive data
+        function populateSpeciesList(species, observations) {
             const speciesList = document.getElementById('species-list');
+            const initialMessage = document.getElementById('initial-message');
             speciesList.innerHTML = '';
-
+    
+            // Create a map of observations for quick lookup
+            const observationMap = observations.reduce((acc, obs) => {
+                acc[obs.species] = obs;
+                return acc;
+            }, {});
+    
             species.forEach(sp => {
                 const speciesCard = document.createElement('div');
                 speciesCard.className = 'card species-card';
                 speciesCard.dataset.species = sp.COMMON_NAME;
+    
+                // Get observation data for this species
+                const speciesObservation = observationMap[sp.COMMON_NAME] || {};
+    
                 speciesCard.innerHTML = `
                     <h3>${sp.COMMON_NAME}</h3>
                     <p>Scientific Name: ${sp.scientific_name || 'N/A'}</p>
                     <p>Conservation Status: ${sp.conservation_status || 'Unknown'}</p>
+                    <p>Total Observations: ${speciesObservation.total_count || 0}</p>
+                    <p>Observation Percentage: ${speciesObservation.percentage ? speciesObservation.percentage.toFixed(2) + '%' : '0%'}</p>
                 `;
                 speciesCard.addEventListener('click', () => showSpeciesDetails(sp.COMMON_NAME));
                 speciesList.appendChild(speciesCard);
             });
+    
+            // Toggle visibility based on species list content
+            if (species.length > 0) {
+                speciesList.style.display = 'grid';
+                initialMessage.style.display = 'none';
+            } else {
+                speciesList.style.display = 'none';
+                initialMessage.style.display = 'block';
+                initialMessage.textContent = 'No species found. Try a different search.';
+            }
         }
-
+    
         // Search species functionality
         function setupSpeciesSearch() {
             const searchInput = document.getElementById('species-search-input');
-            searchInput.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const speciesCards = document.querySelectorAll('.species-card');
-                speciesCards.forEach(card => {
-                    const speciesName = card.dataset.species.toLowerCase();
-                    card.style.display = speciesName.includes(searchTerm) ? 'block' : 'none';
-                });
+            const speciesList = document.getElementById('species-list');
+            const initialMessage = document.getElementById('initial-message');
+    
+            searchInput.addEventListener('input', async (e) => {
+                const searchTerm = e.target.value.trim().toLowerCase();
+                
+                if (searchTerm.length < 2) {
+                    speciesList.style.display = 'none';
+                    initialMessage.style.display = 'block';
+                    initialMessage.textContent = 'Start typing to search for bird species';
+                    return;
+                }
+    
+                // Fetch species based on search term
+                try {
+                    const response = await fetch(`/birds/search_species?q=${searchTerm}&min_obs=0`);
+                    const data = await response.json();
+    
+                    // Fetch region statistics to get observation data
+                    const regionResponse = await fetch('/birds/get_region_statistics');
+                    const regionData = await regionResponse.json();
+    
+                    // Populate species list with search results
+                    populateSpeciesList(data.species, regionData.species_summary || []);
+                } catch (error) {
+                    console.error('Error searching species:', error);
+                    speciesList.style.display = 'none';
+                    initialMessage.style.display = 'block';
+                    initialMessage.textContent = 'Error loading species. Please try again.';
+                }
             });
         }
-
+    
         // Show species details modal
         async function showSpeciesDetails(speciesName) {
             const modal = document.getElementById('species-modal');
@@ -220,9 +277,9 @@
             const observationMap = document.getElementById('observation-map');
             modalSpeciesName.textContent = speciesName;
             modal.style.display = 'block';
-
-            // Fetch species-specific observations
+    
             try {
+                // Fetch hotspot details for the species
                 const response = await fetch('/birds/get_hotspot_details', {
                     method: 'POST',
                     headers: {
@@ -231,27 +288,27 @@
                     body: JSON.stringify({ species: speciesName })
                 });
                 const data = await response.json();
-
+    
                 // Initialize map
                 if (window.speciesMap) {
                     window.speciesMap.remove();
                 }
                 window.speciesMap = L.map('observation-map').setView([0, 0], 2);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.speciesMap);
-
+    
                 // Plot observations on map
                 data.species_details.forEach(detail => {
                     L.marker([detail.latitude, detail.longitude])
                         .bindPopup(`${speciesName}: ${detail.total_count} observations`)
                         .addTo(window.speciesMap);
                 });
-
+    
                 // Create observations chart
                 const ctx = document.getElementById('species-observations-chart').getContext('2d');
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: data.species_details.map(d => `Location`),
+                        labels: data.species_details.map(d => 'Location'),
                         datasets: [{
                             label: 'Observations',
                             data: data.species_details.map(d => d.total_count),
@@ -263,63 +320,62 @@
                         title: { display: true, text: `${speciesName} Observations` }
                     }
                 });
-
+    
             } catch (error) {
                 console.error('Error fetching species details:', error);
             }
         }
-
-        // Create observations trend chart
+    
+        // Create observations trend chart (using regional data)
         function createObservationTrendChart(observations) {
             const ctx = document.getElementById('observationTrendChart').getContext('2d');
             new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
-                    labels: observations.map(o => o.date),
+                    labels: observations.map(o => o.species),
                     datasets: [{
                         label: 'Observations',
-                        data: observations.map(o => o.count),
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
+                        data: observations.map(o => o.total_count),
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)'
                     }]
                 },
                 options: {
                     responsive: true,
-                    title: { display: true, text: 'Birding Observations Over Time' }
+                    title: { display: true, text: 'Species Observations Across Regions' },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
                 }
             });
         }
-
+    
         // Close modal functionality
         document.querySelector('.close-modal').addEventListener('click', () => {
             document.getElementById('species-modal').style.display = 'none';
         });
-
+    
         // Initialize page
         async function initPage() {
-            const { checklists, species } = await fetchUserData();
-
-            // Populate species list
-            populateSpeciesList(species);
-
-            // Setup species search
-            setupSpeciesSearch();
-
-            // Process observations trend data
-            const observationsByDate = checklists.reduce((acc, checklist) => {
-                const date = new Date(checklist.OBSERVATION_DATE).toISOString().split('T')[0];
-                acc[date] = (acc[date] || 0) + 1;
-                return acc;
-            }, {});
-
-            const observationTrend = Object.entries(observationsByDate)
-                .map(([date, count]) => ({ date, count }))
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            // Create observations trend chart
-            createObservationTrendChart(observationTrend);
+            try {
+                // Fetch region statistics first to populate observations
+                const regionResponse = await fetch('/birds/get_region_statistics');
+                const regionData = await regionResponse.json();
+    
+                // Setup species search
+                setupSpeciesSearch();
+    
+                // Create observations trend chart using regional data
+                if (regionData.species_summary && regionData.species_summary.length > 0) {
+                    createObservationTrendChart(regionData.species_summary);
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                document.getElementById('observationTrendChart').innerHTML = 'Error loading observations chart';
+            }
         }
-
+    
         // Initialize when page loads
         initPage();
     </script>
