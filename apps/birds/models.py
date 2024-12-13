@@ -30,7 +30,11 @@ class DataSeeder:
         
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                return list(csv.DictReader(f))
+                # Use strip to remove potential whitespace
+                return [
+                    {k.strip(): v.strip() for k, v in row.items()} 
+                    for row in csv.DictReader(f)
+                ]
         except Exception as e:
             print(f"Error reading file {file_path}: {e}")
             return []
@@ -38,7 +42,7 @@ class DataSeeder:
     @classmethod
     def seed_table(cls, table, csv_path, mapping_func, verbose=True):
         """
-        Seed a database table from a CSV file
+        Seed a database table from a CSV file with robust error handling
         
         Args:
             table: Database table to seed
@@ -51,12 +55,25 @@ class DataSeeder:
         db.commit()
 
         data = cls._read_csv(csv_path)
+        
+        if not data:
+            print(f"No data found in {csv_path}")
+            return
+
         try:
+            inserted_count = 0
             for row in data:
-                table.insert(**mapping_func(row))
+                try:
+                    # Use mapping function with error handling
+                    mapped_row = mapping_func(row)
+                    table.insert(**mapped_row)
+                    inserted_count += 1
+                except Exception as row_error:
+                    print(f"Error processing row: {row}. Error: {row_error}")
+            
             db.commit()
             if verbose:
-                print(f"{table._tablename} table seeded successfully with {len(data)} records.")
+                print(f"{table._tablename} table seeded successfully with {inserted_count} records.")
         except Exception as e:
             print(f"Error seeding {table._tablename} table: {e}")
             db.rollback()
@@ -103,7 +120,7 @@ def define_database_tables():
         db.define_table('my_checklist', 
             Field('user_email', type='string', default=get_user_email),
             Field('SAMPLING_EVENT_IDENTIFIER', type='string'),
-            Field('COMMON_NAME', type='string'),  # Add this line
+            Field('COMMON_NAME', type='string'),
             Field('LATITUDE', type='double', required=True),
             Field('LONGITUDE', type='double', required=True),
             Field('OBSERVATION_DATE', type='date', required=True),
@@ -128,50 +145,41 @@ def seed_database(base_path=None):
     # Add more verbose logging
     print("Starting database seeding process...")
 
-    # Seeding configurations
+    # Seeding configurations with more robust mapping
     seeding_config = [
         {
             'table': db.species,
             'file': os.path.join(base_path, 'species.csv'),
             'mapper': lambda row: {
+                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING EVENT IDENTIFIER', '').strip(),
                 'COMMON_NAME': row.get('COMMON NAME', '').strip(),
-                'scientific_name': row.get('SCIENTIFIC_NAME', ''),
-                'conservation_status': row.get('CONSERVATION_STATUS', 'Unknown')
+                'OBSERVATION_COUNT': 1 if row.get('OBSERVATION COUNT', 'X') == 'X' else int(row.get('OBSERVATION COUNT', 1)),
+                'observer_email': row.get('OBSERVER EMAIL', '').strip() or get_user_email(),
+                'observation_time': get_time()
             }
         },
         {
             'table': db.checklist,
             'file': os.path.join(base_path, 'checklists.csv'),
             'mapper': lambda row: {
-                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING_EVENT_IDENTIFIER', str(get_time())),
+                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING EVENT IDENTIFIER', str(get_time())).strip(),
                 'LATITUDE': float(row.get('LATITUDE', 0)),
                 'LONGITUDE': float(row.get('LONGITUDE', 0)),
-                'OBSERVATION_DATE': row.get('OBSERVATION_DATE', datetime.date.today()),
-                'TIME_OBSERVATIONS_STARTED': row.get('TIME_OBSERVATIONS_STARTED', datetime.time()),
-                'OBSERVER_ID': row.get('OBSERVER_ID', ''),
-                'DURATION_MINUTES': float(row.get('DURATION_MINUTES', 0))
+                'OBSERVATION_DATE': row.get('OBSERVATION DATE', datetime.date.today()),
+                'TIME_OBSERVATIONS_STARTED': row.get('TIME OBSERVATIONS STARTED', datetime.time()),
+                'OBSERVER_ID': row.get('OBSERVER ID', '').strip(),
+                'DURATION_MINUTES': float(row.get('DURATION MINUTES', 0)) if row.get('DURATION MINUTES', '').strip() else 0.0
             }
         },
         {
             'table': db.sightings,
             'file': os.path.join(base_path, 'sightings.csv'),
             'mapper': lambda row: {
-                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING_EVENT_IDENTIFIER', ''),
-                'COMMON_NAME': row.get('COMMON_NAME', ''),
-                'OBSERVATION_COUNT': int(row.get('OBSERVATION_COUNT', 1)),
-                'observer_email': row.get('OBSERVER_EMAIL', ''),
-                'observation_time': row.get('OBSERVATION_TIME', get_time())
-            }
-        },
-        {
-            'table': db.hotspots,
-            'file': os.path.join(base_path, 'hotspots.csv'),  # Add this seeding configuration
-            'mapper': lambda row: {
-                'name': row.get('NAME', ''),
-                'description': row.get('DESCRIPTION', ''),
-                'latitude': float(row.get('LATITUDE', 0)),
-                'longitude': float(row.get('LONGITUDE', 0)),
-                'popularity_score': int(row.get('POPULARITY_SCORE', 0))
+                'SAMPLING_EVENT_IDENTIFIER': row.get('SAMPLING EVENT IDENTIFIER', '').strip(),
+                'COMMON_NAME': row.get('COMMON NAME', '').strip(),
+                'OBSERVATION_COUNT': 1 if row.get('OBSERVATION COUNT', 'X') == 'X' else int(row.get('OBSERVATION COUNT', 1)),
+                'observer_email': row.get('OBSERVER EMAIL', '').strip() or get_user_email(),
+                'observation_time': get_time()
             }
         }
     ]

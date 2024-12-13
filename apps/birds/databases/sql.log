@@ -334,3 +334,68 @@ success!
 success!
 success!
 success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+timestamp: 2024-12-12T19:50:48.186995
+ALTER TABLE "sightings" ADD "latitude" DOUBLE;
+timestamp: 2024-12-12T19:50:48.188795
+ALTER TABLE "sightings" ADD "longitude" DOUBLE;
+timestamp: 2024-12-12T19:50:48.190609
+ALTER TABLE "sightings" ADD "observation_date" DATE;
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!
+success!

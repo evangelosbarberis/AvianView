@@ -141,8 +141,9 @@ def get_bird_sightings():
         if not all([north, south, east, west]):
             return dict(error="Invalid geographic bounds", sightings=[])
         
-        # Modify query to use both my_checklist and checklist tables
+        # Modify query to use both my_checklist and checklist tables with explicit joins
         query = (
+            (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER) &
             (db.checklist.LATITUDE <= north) & 
             (db.checklist.LATITUDE >= south) & 
             (db.checklist.LONGITUDE <= east) & 
@@ -153,35 +154,36 @@ def get_bird_sightings():
         if selected_species:
             query &= (db.sightings.COMMON_NAME == selected_species)
         
-        # Join checklist and sightings to get comprehensive data
+        # Perform comprehensive join and selection
         observations = db(query).select(
             db.checklist.LATITUDE, 
             db.checklist.LONGITUDE, 
             db.sightings.COMMON_NAME,
-            db.sightings.OBSERVATION_COUNT,
-            left=db.sightings.on(db.checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
+            db.sightings.OBSERVATION_COUNT
         )
         
-        # Process observations into heat map format
+        # Process observations into heat map format with better error handling
         sightings = []
         for obs in observations:
             try:
-                count = int(obs.sightings.OBSERVATION_COUNT or 1)
-                sightings.append({
-                    'lat': obs.checklist.LATITUDE,
-                    'lon': obs.checklist.LONGITUDE,
-                    'species': obs.sightings.COMMON_NAME,
-                    'intensity': min(count, 10)  # Cap intensity for visual clarity
-                })
-            except (ValueError, TypeError):
-                # Skip invalid entries
-                continue
+                # Ensure we have valid data before processing
+                if obs.checklist.LATITUDE and obs.checklist.LONGITUDE and obs.sightings.COMMON_NAME:
+                    count = int(obs.sightings.OBSERVATION_COUNT or 1)
+                    sightings.append({
+                        'lat': obs.checklist.LATITUDE,
+                        'lon': obs.checklist.LONGITUDE,
+                        'species': obs.sightings.COMMON_NAME,
+                        'intensity': min(count, 10)  # Cap intensity for visual clarity
+                    })
+            except (ValueError, TypeError, AttributeError) as e:
+                logger.warning(f"Skipping invalid observation: {e}")
         
         return dict(sightings=sightings)
     
     except Exception as e:
         logger.error(f"Error in get_bird_sightings: {str(e)}")
         return dict(error=str(e), sightings=[])
+
 @action("get_hotspot_details", method=["POST"])
 @action.uses(db)
 def get_hotspot_details():
@@ -194,47 +196,52 @@ def get_hotspot_details():
         lon = data.get('lon')
         species = data.get('species')
 
-        # Use a broader tolerance for matching coordinates
+        # Use a tighter tolerance for matching coordinates
         query = (
-            (db.my_checklist.LATITUDE >= lat - 0.1) & 
-            (db.my_checklist.LATITUDE <= lat + 0.1) & 
-            (db.my_checklist.LONGITUDE >= lon - 0.1) & 
-            (db.my_checklist.LONGITUDE <= lon + 0.1)
+            (db.checklist.LATITUDE >= lat - 0.01) & 
+            (db.checklist.LATITUDE <= lat + 0.01) & 
+            (db.checklist.LONGITUDE >= lon - 0.01) & 
+            (db.checklist.LONGITUDE <= lon + 0.01)
         )
 
+        # Create join condition for sightings
+        join_condition = (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER)
+        
         # Apply species filter if provided
         if species:
-            query &= (db.sightings.COMMON_NAME == species)
+            join_condition &= (db.sightings.COMMON_NAME == species)
 
-        # Fetch observations with more comprehensive selection
+        # Fetch observations with comprehensive selection
         observations = db(query).select(
-            db.my_checklist.SAMPLING_EVENT_IDENTIFIER,
-            db.my_checklist.LATITUDE, 
-            db.my_checklist.LONGITUDE,
+            db.checklist.SAMPLING_EVENT_IDENTIFIER,
+            db.checklist.LATITUDE, 
+            db.checklist.LONGITUDE,
             db.sightings.COMMON_NAME, 
             db.sightings.OBSERVATION_COUNT,
-            left=db.sightings.on(
-                (db.my_checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER)
-            )
+            left=db.sightings.on(join_condition)
         )
 
         # Prepare detailed species information
         species_details = {}
+        species_checklists = set()
+
         for obs in observations:
             if obs.sightings.COMMON_NAME:  # Ensure we have a valid species name
                 species_name = obs.sightings.COMMON_NAME
                 count = obs.sightings.OBSERVATION_COUNT or 1
+                checklist_id = obs.checklist.SAMPLING_EVENT_IDENTIFIER
+                species_checklists.add(checklist_id)
                 
                 if species_name not in species_details:
                     species_details[species_name] = {
                         'total_count': count,
                         'observation_count': 1,
-                        'checklists': {obs.my_checklist.SAMPLING_EVENT_IDENTIFIER}
+                        'checklists': {checklist_id}
                     }
                 else:
                     species_details[species_name]['total_count'] += count
                     species_details[species_name]['observation_count'] += 1
-                    species_details[species_name]['checklists'].add(obs.my_checklist.SAMPLING_EVENT_IDENTIFIER)
+                    species_details[species_name]['checklists'].add(checklist_id)
 
         # Convert to list for easier frontend processing
         formatted_species_details = [
@@ -254,7 +261,8 @@ def get_hotspot_details():
             species_details=formatted_species_details,
             total_observations=sum(details['total_count'] for details in formatted_species_details) if formatted_species_details else 0,
             location_lat=lat,
-            location_lon=lon
+            location_lon=lon,
+            unique_checklists=len(species_checklists)
         )
 
     except Exception as e:
