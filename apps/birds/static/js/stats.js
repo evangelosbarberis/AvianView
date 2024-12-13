@@ -40,16 +40,16 @@ const app = Vue.createApp({
             this.isLoading = true;
             this.error = null;
             this.speciesStatistics = null;
-
+        
             try {
-                const response = await axios.get('/birds/get_region_statistics', {
+                const response = await axios.get('/birds/get_species_stats', {
                     params: { species: speciesName }
                 });
-
-                if (response.data.species_summary && response.data.species_summary.length > 0) {
-                    this.speciesStatistics = response.data.species_summary[0];
+        
+                if (!response.data.error) {
+                    this.speciesStatistics = response.data;
                 } else {
-                    this.error = 'No statistics found for this species';
+                    this.error = response.data.error || 'No statistics found for this species';
                 }
             } catch (error) {
                 console.error('Error fetching species statistics:', error);
