@@ -103,6 +103,7 @@ auth.use_username = False
 auth.param.button_classes = auth_button_classes
 auth.param.registration_requires_confirmation = False
 auth.param.registration_requires_approval = False
+auth.param.login_after_registration = True
 auth.param.allowed_actions = settings.ALLOWED_ACTIONS
 auth.param.login_expiration_time = 3600
 # FIXME: Readd for production.
