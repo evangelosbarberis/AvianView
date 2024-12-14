@@ -554,19 +554,19 @@ def get_species_statistics():
 def get_region_statistics():
     try:
         # Parse region bounds from query parameters
-        north = float(request.params.get('north', 0))
-        south = float(request.params.get('south', 0))
-        east = float(request.params.get('east', 0))
-        west = float(request.params.get('west', 0))
-        
+        north = float(request.params.get('north', 90))
+        south = float(request.params.get('south', -90))
+        east = float(request.params.get('east', 180))
+        west = float(request.params.get('west', -180))
+
         # Region bounds query
         query = (
-            (db.my_checklist.LATITUDE <= north) & 
-            (db.my_checklist.LATITUDE >= south) & 
-            (db.my_checklist.LONGITUDE <= east) & 
-            (db.my_checklist.LONGITUDE >= west)
+            (db.checklist.LATITUDE <= north) & 
+            (db.checklist.LATITUDE >= south) & 
+            (db.checklist.LONGITUDE <= east) & 
+            (db.checklist.LONGITUDE >= west)
         )
-        
+
         # Aggregate species statistics
         species_summary = db(query).select(
             db.sightings.COMMON_NAME, 
@@ -575,11 +575,11 @@ def get_region_statistics():
             orderby=~db.sightings.OBSERVATION_COUNT.sum(),
             limitby=(0, 10)  # Limit to top 10
         )
-        
+
         # Total observations and unique species
         total_observations = sum(row.total_count for row in species_summary)
         unique_species = len(species_summary)
-        
+
         return dict(
             species_summary=[
                 {
@@ -595,6 +595,7 @@ def get_region_statistics():
     except Exception as e:
         logger.error(f"Error in get_region_statistics: {str(e)}")
         return dict(error=str(e))
+
     
 @action("get_species_time_series", method=["POST"])
 @action.uses(db)
@@ -612,12 +613,15 @@ def get_species_time_series():
             db.checklist.OBSERVATION_DATE,
             db.sightings.OBSERVATION_COUNT.sum().with_alias('count'),
             groupby=db.checklist.OBSERVATION_DATE,
-            orderby=db.checklist.OBSERVATION_DATE
+            orderby=~db.checklist.OBSERVATION_DATE,
+            limitby=(0, 5)  # Limit to the most recent 5 periods
         )
+        
         return dict(time_series=[{
             'date': row.checklist.OBSERVATION_DATE,
             'count': row.count
         } for row in time_series_data])
+    
     except Exception as e:
         logger.error(f"Error in get_species_time_series: {str(e)}")
         return dict(error=str(e))
@@ -657,3 +661,74 @@ def get_top_contributors():
     except Exception as e:
         logger.error(f"Error in get_top_contributors: {str(e)}")
         return dict(error=str(e))
+
+@action("get_top_observed_birds", method=["GET"])
+@action.uses(db)
+def get_top_observed_birds():
+    """
+    Retrieve the top 10 most observed birds
+    """
+    try:
+        # Query sightings table to get the top 10 most observed birds
+        top_observed_birds = db(db.sightings).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME,
+            orderby=~db.sightings.OBSERVATION_COUNT.sum(),
+            limitby=(0, 10)
+        )
+        
+        # Prepare data for frontend
+        bird_data = [
+            {
+                'species': row.sightings.COMMON_NAME, 
+                'total_count': row.total_count
+            } for row in top_observed_birds
+        ]
+        
+        return dict(
+            success=True,
+            species_summary=bird_data
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_top_observed_birds: {str(e)}")
+        return dict(error=str(e), success=False)
+
+
+@action("get_bird_observation_times", method=["GET"])
+@action.uses(db)
+def get_bird_observation_times():
+    """
+    Retrieve top 10 birds by total observation time
+    """
+    try:
+        # First, ensure you have the correct table and field names
+        # If 'sightings' table doesn't have DURATION_MINUTES, you might need to join with 'checklist'
+        bird_times = db(db.sightings).select(
+            db.sightings.COMMON_NAME,
+            # Use a subquery or join to get duration
+            db.checklist.DURATION_MINUTES.sum().with_alias('total_minutes'),
+            left=[db.checklist.on(
+                db.checklist.SAMPLING_EVENT_IDENTIFIER == db.sightings.SAMPLING_EVENT_IDENTIFIER
+            )],
+            groupby=db.sightings.COMMON_NAME,
+            orderby=~db.checklist.DURATION_MINUTES.sum(),
+            limitby=(0, 10)
+        )
+
+        # Prepare data for frontend
+        bird_time_data = [
+            {
+                'species': row.sightings.COMMON_NAME,
+                'total_minutes': row.total_minutes
+            } for row in bird_times
+        ]
+
+        return dict(
+            success=True,
+            bird_times=bird_time_data
+        )
+    except Exception as e:
+        logger.error(f"Error in get_bird_observation_times: {str(e)}")
+        return dict(error=str(e), success=False)

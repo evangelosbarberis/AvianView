@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AvianView - My Birding Stats</title>
+    <title>AvianView - Location Details</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -146,14 +146,43 @@
         }
 
         #species-time-series-chart {
-            height: 300px;
-            width: 100%;
+            height: 300px; /* Fixed height */
+            width: 100%;   /* Full width of the container */
         }
+
+        .back-button {
+            display: inline-block;
+            margin-bottom: 20px;
+            font-size: 18px;
+            transition: color 0.3s ease;
+        }
+
+        .back-button:hover {
+            color: #fff; /* Change color on hover */
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .chart-container {
+            height: 400px;
+            width: 100%;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <h1><i class="fa-solid fa-binoculars"></i> My Birding Stats</h1>
+        <a href="index.html" class="back-button" style="text-decoration: none; color: var(--text-color);">
+            <i class="fa-solid fa-arrow-left"></i> Back to Home
+        </a>
+        <h1><i class="fa-solid fa-binoculars"></i> Location Details</h1>
 
         <div class="card">
             <h2>Regional Species Observations</h2>
@@ -179,13 +208,22 @@
             <h2>Top Contributors</h2>
             <div id="contributors-container" class="contributors-list"></div>
         </div>
+        
 
         <div class="card">
-            <h2>Bird Observation Breakdown</h2>
-            <div id="bird-breakdown-chart" class="chart-container">
-                <canvas id="birdBreakdownCanvas"></canvas>
+            <h2>Bird Observation Analysis</h2>
+            <div class="charts-container">
+                <div class="chart-container">
+                    <h3>Top Bird Species</h3>
+                    <canvas id="topBirdSpeciesCanvas"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Bird Observation Times</h3>
+                    <canvas id="birdObservationTimesCanvas"></canvas>
+                </div>
             </div>
         </div>
+
 
     <!-- Species Modal -->
     <div id="species-modal" class="modal">
@@ -222,23 +260,26 @@
             // Cached fetch with performance optimizations
             async fetchWithCache(url, options = {}, cacheKey = null) {
                 if (cacheKey && this.speciesCache[cacheKey]) {
-                    return this.speciesCache[cacheKey];
-                }
-
-                try {
-                    const response = await fetch(url, options);
-                    const data = await response.json();
-                    
-                    if (cacheKey) {
-                        this.speciesCache[cacheKey] = data;
-                    }
-                    return data;
-                } catch (error) {
-                    console.error('Fetch error:', error);
-                    return null;
-                }
+                return this.speciesCache[cacheKey];
             }
 
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (cacheKey) {
+                    this.speciesCache[cacheKey] = data;
+                }
+                return data;
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert('Failed to fetch data. Please try again later.');
+                return null;
+            }
+        }
             // Instant search with local filtering
             async searchSpecies(searchTerm) {
                 // Check cache or fetch full species list
@@ -273,11 +314,10 @@
 
             async getSpeciesStatistics(speciesName) {
                 const response = await this.fetchWithCache('/birds/get_species_statistics', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ species: speciesName })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ species: speciesName })
                 }, `species_stats_${speciesName}`);
-                
                 return response;
             }
 
@@ -321,17 +361,23 @@
 
             async getTopBirdsData() {
                 if (this.topSpeciesCache) return this.topSpeciesCache;
-
-                const regionData = await this.fetchWithCache('/birds/get_region_statistics');
-                
-                if (regionData?.species_summary) {
-                    // Return all species instead of slicing to top 3
-                    this.topSpeciesCache = regionData.species_summary;
-                    return regionData.species_summary;
+                try {
+                    const response = await fetch('/birds/get_top_observed_birds');
+                    const data = await response.json();
+                    
+                    if (data.success && data.species_summary) {
+                        this.topSpeciesCache = data.species_summary;
+                        return data.species_summary;
+                    } else {
+                        console.error('Error fetching top birds data:', data.error);
+                        return [];
+                    }
+                } catch (error) {
+                    console.error('Error fetching top birds data:', error);
+                    return [];
                 }
-                
-                return [];
             }
+
         
 
             async getRegionalSpeciesList() {
@@ -358,19 +404,58 @@
 
             async getSpeciesTimeSeries(speciesName) {
                 try {
-                    const response = await fetch('/birds/get_species_time_series', {
+                    const response = await this.fetchWithCache('/birds/get_species_time_series', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ species: speciesName })
-                    });
-                    const data = await response.json();
-                    return data.time_series || [];
+                    }, `species_time_series_${speciesName}`);
+
+                    // Check if the response contains time series data
+                    if (response && response.time_series) {
+                        // Sort the time series data by date in descending order
+                        const sortedTimeSeries = response.time_series.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        
+                        // Limit to the 5 most recent data points
+                        const limitedTimeSeries = sortedTimeSeries.slice(0, 5).reverse();
+                        
+                        return limitedTimeSeries;
+                    } else {
+                        console.warn(`No time series data found for ${speciesName}`);
+                        return [];
+                    }
                 } catch (error) {
                     console.error('Error fetching species time series:', error);
                     return [];
                 }
             }
+
+            async getBirdObservationTimes() {
+                try {
+                    const response = await fetch('/birds/get_bird_observation_times');
+                    const data = await response.json();
+                    return data.bird_times || [];
+                } catch (error) {
+                    console.error('Error fetching bird observation times:', error);
+                    return [];
+                }
+            }
         }
+
+
+        const COLOR_PALETTE = [
+            '#FF6384',  // Pink
+            '#36A2EB',  // Blue
+            '#FFCE56',  // Yellow
+            '#4BC0C0',  // Teal
+            '#9966FF',  // Purple
+            '#FF9F40',  // Orange
+            '#FF6384',  // Pink
+            '#C9CBCF',  // Gray
+            '#FFA07A',  // Light Salmon
+            '#00CED1',  // Dark Turquoise
+            '#8A2BE2',  // Blue Violet
+            '#32CD32',  // Lime Green
+        ];
 
         const dataManager = new DataManager();
 
@@ -536,26 +621,49 @@
             }
 
             const timeSeriesData = await dataManager.getSpeciesTimeSeries(speciesName);
+
+            // Clear any existing chart
+            if (window.speciesTimeSeriesChart) {
+                window.speciesTimeSeriesChart.destroy();
+            }
             
             if (timeSeriesData.length > 0) {
                 const ctx = document.getElementById('species-time-series-chart').getContext('2d');
-                new Chart(ctx, {
+                
+                window.speciesTimeSeriesChart = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: timeSeriesData.map(entry => entry.month),
+                        labels: timeSeriesData.map(entry => {
+                            const date = new Date(entry.date);
+                            return date.toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short' 
+                            });
+                        }),
                         datasets: [{
                             label: `${speciesName} Observations`,
                             data: timeSeriesData.map(entry => entry.count),
                             borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            fill: true
                         }]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: true,  // Ensure aspect ratio is maintained
+                        layout: {
+                            padding: {
+                                top: 10,
+                                bottom: 10,
+                                left: 10,
+                                right: 10
+                            }
+                        },
                         plugins: {
                             title: {
                                 display: true,
-                                text: `${speciesName} Observations Over Time`
+                                text: `${speciesName} Observations (Last 5 Periods)`
                             }
                         },
                         scales: {
@@ -569,122 +677,210 @@
                             x: {
                                 title: {
                                     display: true,
-                                    text: 'Month'
+                                    text: 'Date'
                                 }
                             }
                         }
                     }
                 });
+            } else {
+                // If no time series data is available
+                const ctx = document.getElementById('species-time-series-chart').getContext('2d');
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.font = '16px Arial';
+                ctx.fillStyle = 'gray';
+                ctx.textAlign = 'center';
+                ctx.fillText('No observations data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
             }
-
         }
 
-        function initializeCharts() {
-        const topBirdsCanvas = document.getElementById('topBirdsCanvas');
-        const birdBreakdownCanvas = document.getElementById('birdBreakdownCanvas');
-        const speciesTimeSeriesCanvas = document.getElementById('species-time-series-chart');
+        async function initializeCharts() {
+            const topBirdsCanvas = document.getElementById('topBirdsCanvas');
+            const birdBreakdownCanvas = document.getElementById('birdBreakdownCanvas');
 
-        // Top Birds Chart
-        const topBirdsChart = new Chart(topBirdsCanvas, {
-            type: 'bar',
-            data: {
-                labels: ['Species A', 'Species B', 'Species C'],
-                datasets: [{
-                    label: 'Observations',
-                    data: [10, 15, 5], // Replace with dynamic data
-                    backgroundColor: ['#FFD700', '#8FBC8F', '#556B2F']
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
+            // Top Birds Chart
+            const topBirdsChart = new Chart(topBirdsCanvas, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Top Birds Observed',
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                    }]
                 },
-                scales: {
-                    x: { title: { display: true, text: 'Species' } },
-                    y: { title: { display: true, text: 'Observations' } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 10 Most Observed Birds'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Observations'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Bird Species'
+                            },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
                 }
-            }
-        });
+            });
 
-        // Bird Observation Breakdown Chart
-        const birdBreakdownChart = new Chart(birdBreakdownCanvas, {
-            type: 'pie',
-            data: {
-                labels: ['Species A', 'Species B', 'Species C'],
-                datasets: [{
-                    label: 'Distribution',
-                    data: [30, 50, 20], // Replace with dynamic data
-                    backgroundColor: ['#FFD700', '#8FBC8F', '#556B2F']
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
-                }
-            }
-        });
+            // Bird Observation Breakdown Chart
+            const speciesCountChart = new Chart(document.getElementById('birdBreakdownCanvas'), {
+                    type: 'pie',
+                    data: {
+                        labels: topBirdsData.map(item => item.species),
+                        datasets: [{
+                            data: topBirdsData.map(item => item.total_count),
+                            backgroundColor: COLOR_PALETTE.slice(0, topBirdsData.length)
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { 
+                            title: {
+                                display: true,
+                                text: 'Bird Species Observation Count'
+                            },
+                            legend: { 
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20
+                                }
+                            }
+                        }
+                    }
+                });
 
-        // Species Observation Over Time Chart
-        const speciesTimeSeriesChart = new Chart(speciesTimeSeriesCanvas, {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr'], // Replace with dynamic labels
-                datasets: [{
-                    label: 'Observations Over Time',
-                    data: [5, 15, 10, 20], // Replace with dynamic data
-                    borderColor: '#FFD700',
-                    fill: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'top' },
-                },
-                scales: {
-                    x: { title: { display: true, text: 'Month' } },
-                    y: { title: { display: true, text: 'Observations' } }
-                }
-            }
-        });
+                
 
-        // Return chart instances for updates
-        return { topBirdsChart, birdBreakdownChart, speciesTimeSeriesChart };
-    }
+            birdBreakdownChart.update();
+
+            return { topBirdsChart, birdBreakdownChart };
+        }
+
+
 
     // Dynamically update charts with data fetched from the server
-    async function updateCharts(charts) {
-        const topBirdsData = await dataManager.getTopBirdsData();
-        const topSpeciesNames = topBirdsData.map(item => item.species);
-        const topSpeciesCounts = topBirdsData.map(item => item.total_count);
+    async function updateCharts() {
+        try {
+            const topBirdSpeciesCanvas = document.getElementById('topBirdSpeciesCanvas');
+            const birdObservationTimesCanvas = document.getElementById('birdObservationTimesCanvas');
 
-        // Update Top Birds Chart
-        charts.topBirdsChart.data.labels = topSpeciesNames;
-        charts.topBirdsChart.data.datasets[0].data = topSpeciesCounts;
-        charts.topBirdsChart.update();
+            // Fetch both top birds and bird observation times data
+            const [topBirdsData, birdTimeData] = await Promise.all([
+                dataManager.getTopBirdsData(),
+                dataManager.getBirdObservationTimes()
+            ]);
 
-        // Update Bird Observation Breakdown
-        charts.birdBreakdownChart.data.labels = topSpeciesNames;
-        charts.birdBreakdownChart.data.datasets[0].data = topSpeciesCounts;
-        charts.birdBreakdownChart.update();
+            const COLOR_PALETTE = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+                '#FF9F40', '#C9CBCF', '#FFA07A', '#00CED1', '#8A2BE2'
+            ];
+
+            // Top Bird Species Chart
+            if (topBirdsData && topBirdsData.length > 0) {
+                new Chart(topBirdSpeciesCanvas, {
+                    type: 'pie',
+                    data: {
+                        labels: topBirdsData.map(item => item.species),
+                        datasets: [{
+                            data: topBirdsData.map(item => item.total_count),
+                            backgroundColor: COLOR_PALETTE.slice(0, topBirdsData.length)
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            title: {
+                                display: true,
+                                text: 'Top Bird Species by Observation Count'
+                            },
+                            legend: { 
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                console.warn('No data available for top bird species.');
+            }
+
+            // Bird Observation Times Chart
+            if (birdTimeData && birdTimeData.length > 0) {
+                new Chart(birdObservationTimesCanvas, {
+                    type: 'pie',
+                    data: {
+                        labels: birdTimeData.map(item => item.species),
+                        datasets: [{
+                            data: birdTimeData.map(item => item.total_minutes),
+                            backgroundColor: COLOR_PALETTE.slice(0, birdTimeData.length)
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            title: {
+                                display: true,
+                                text: 'Top Birds by Observation Time (Minutes)'
+                            },
+                            legend: { 
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                console.warn('No data available for bird observation times.');
+            }
+        } catch (error) {
+            console.error('Error updating charts:', error);
+        }
     }
 
+        
 
-    async function renderTopBirdsChart() {
-            const topBirdsData = await dataManager.getTopBirdsData();
-            
-            if (!topBirdsData || topBirdsData.length === 0) {
-                console.error('No data available for top birds chart.');
+        async function renderTopBirdsChart() {
+            const topBirdsCanvas = document.getElementById('topBirdsCanvas');
+            const topSpeciesData = await dataManager.getTopBirdsData();
+
+            console.log("Top Birds Data:", topSpeciesData);
+
+            if (!topSpeciesData || topSpeciesData.length === 0) {
+                topBirdsCanvas.innerHTML = '<p>No data available for top birds.</p>';
                 return;
             }
 
-            const labels = topBirdsData.map(bird => bird.species);
-            const data = topBirdsData.map(bird => bird.count);
+            const labels = topSpeciesData.map(item => item.species);
+            const data = topSpeciesData.map(item => item.total_count);
 
-            const ctx = document.getElementById('topBirdsCanvas').getContext('2d');
-            new Chart(ctx, {
+            new Chart(topBirdsCanvas, {
                 type: 'bar',
                 data: {
                     labels: labels,
@@ -694,24 +890,47 @@
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 1,
-                    }],
+                    }]
                 },
                 options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 10 Most Observed Birds'
+                        }
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Observations'
+                            }
                         },
-                    },
-                },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Bird Species'
+                            },
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
             });
         }
 
-
     // Initialize and update charts on page load
     document.addEventListener('DOMContentLoaded', async () => {
-        const charts = initializeCharts();
-        await updateCharts(charts);
-        await initPage();
+        try {
+            await updateCharts();
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
     });
 
 
@@ -737,8 +956,8 @@
         async function initPage() {
             await Promise.all([
                 setupSpeciesSearch(),
-                // renderRegionalSpeciesList(),
-                renderTopContributors()
+                renderTopContributors(),
+                renderTopBirdsChart()  // Add this line to render the top birds chart
             ]);
         }
 
