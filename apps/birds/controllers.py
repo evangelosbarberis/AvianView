@@ -473,17 +473,17 @@ def my_callback():
     return dict(my_value=3)
 
 @action('add_checklist')
-@action.uses('add_checklist.html', db, auth)
+@action.uses('add_checklist.html', db, session, auth.user)
 def add_checklist():
     return dict()
 
 @action('my_checklists')
-@action.uses('my_checklists.html', db, auth)
+@action.uses('my_checklists.html', db, session, auth.user)
 def my_checklists():
     return dict()
 
 @action('stats')
-@action.uses('stats.html', db, auth)
+@action.uses('stats.html', db, session, auth.user)
 def stats():
     return dict()
 
