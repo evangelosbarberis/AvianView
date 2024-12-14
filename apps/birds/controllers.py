@@ -407,60 +407,60 @@ def edit_checklist(checklist_id):
     """Edit a specific checklist"""
     return ChecklistManager.modify_checklist(checklist_id, 'edit', request.json)
 
-@action("get_region_statistics", method=["GET"])
-@action.uses(db)
-def get_region_statistics():
-    """
-    Retrieve detailed statistics for a specific geographic region
+# @action("get_region_statistics", method=["GET"])
+# @action.uses(db)
+# def get_region_statistics():
+#     """
+#     Retrieve detailed statistics for a specific geographic region
     
-    Query parameters:
-    - north: Northern latitude bound
-    - south: Southern latitude bound
-    - east: Eastern longitude bound
-    - west: Western longitude bound
-    """
-    try:
-        # Parse region bounds from query parameters
-        north = float(request.params.get('north', 0))
-        south = float(request.params.get('south', 0))
-        east = float(request.params.get('east', 0))
-        west = float(request.params.get('west', 0))
+#     Query parameters:
+#     - north: Northern latitude bound
+#     - south: Southern latitude bound
+#     - east: Eastern longitude bound
+#     - west: Western longitude bound
+#     """
+#     try:
+#         # Parse region bounds from query parameters
+#         north = float(request.params.get('north', 0))
+#         south = float(request.params.get('south', 0))
+#         east = float(request.params.get('east', 0))
+#         west = float(request.params.get('west', 0))
         
-        # Region bounds query
-        query = (
-            (db.my_checklist.LATITUDE <= north) & 
-            (db.my_checklist.LATITUDE >= south) & 
-            (db.my_checklist.LONGITUDE <= east) & 
-            (db.my_checklist.LONGITUDE >= west)
-        )
+#         # Region bounds query
+#         query = (
+#             (db.my_checklist.LATITUDE <= north) & 
+#             (db.my_checklist.LATITUDE >= south) & 
+#             (db.my_checklist.LONGITUDE <= east) & 
+#             (db.my_checklist.LONGITUDE >= west)
+#         )
         
-        # Aggregate species statistics
-        species_summary = db(query).select(
-            db.sightings.COMMON_NAME, 
-            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
-            groupby=db.sightings.COMMON_NAME,
-            orderby=~db.sightings.OBSERVATION_COUNT.sum()  # Sort by descending count
-        )
+#         # Aggregate species statistics
+#         species_summary = db(query).select(
+#             db.sightings.COMMON_NAME, 
+#             db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+#             groupby=db.sightings.COMMON_NAME,
+#             orderby=~db.sightings.OBSERVATION_COUNT.sum()  # Sort by descending count
+#         )
         
-        # Total observations and unique species
-        total_observations = sum(row.total_count for row in species_summary)
-        unique_species = len(species_summary)
+#         # Total observations and unique species
+#         total_observations = sum(row.total_count for row in species_summary)
+#         unique_species = len(species_summary)
         
-        return dict(
-            species_summary=[
-                {
-                    'species': row.sightings.COMMON_NAME, 
-                    'total_count': row.total_count,
-                    'percentage': (row.total_count / total_observations * 100) if total_observations > 0 else 0
-                } for row in species_summary
-            ],
-            total_observations=total_observations,
-            unique_species=unique_species
-        )
+#         return dict(
+#             species_summary=[
+#                 {
+#                     'species': row.sightings.COMMON_NAME, 
+#                     'total_count': row.total_count,
+#                     'percentage': (row.total_count / total_observations * 100) if total_observations > 0 else 0
+#                 } for row in species_summary
+#             ],
+#             total_observations=total_observations,
+#             unique_species=unique_species
+#         )
     
-    except Exception as e:
-        logger.error(f"Error in get_region_statistics: {str(e)}")
-        return dict(error=str(e))
+#     except Exception as e:
+#         logger.error(f"Error in get_region_statistics: {str(e)}")
+#         return dict(error=str(e))
 
 # Static route handlers for HTML templates
 @action('index')
@@ -549,25 +549,51 @@ def get_species_statistics():
         logger.error(f"Error in get_species_statistics: {str(e)}")
         return dict(error=str(e))
     
-@action("get_regional_species", method=["GET"])
+@action("get_region_statistics", method=["GET"])
 @action.uses(db)
-def get_regional_species():
+def get_region_statistics():
     try:
-        species_data = db(
-            (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER)
-        ).select(
-            db.sightings.COMMON_NAME,
-            db.checklist.id.count().with_alias('checklists'),
-            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_sightings'),
-            groupby=db.sightings.COMMON_NAME
+        # Parse region bounds from query parameters
+        north = float(request.params.get('north', 0))
+        south = float(request.params.get('south', 0))
+        east = float(request.params.get('east', 0))
+        west = float(request.params.get('west', 0))
+        
+        # Region bounds query
+        query = (
+            (db.my_checklist.LATITUDE <= north) & 
+            (db.my_checklist.LATITUDE >= south) & 
+            (db.my_checklist.LONGITUDE <= east) & 
+            (db.my_checklist.LONGITUDE >= west)
         )
-        return dict(species=[{
-            'name': row.sightings.COMMON_NAME,
-            'checklists': row.checklists,
-            'total_sightings': row.total_sightings
-        } for row in species_data])
+        
+        # Aggregate species statistics
+        species_summary = db(query).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME,
+            orderby=~db.sightings.OBSERVATION_COUNT.sum(),
+            limitby=(0, 10)  # Limit to top 10
+        )
+        
+        # Total observations and unique species
+        total_observations = sum(row.total_count for row in species_summary)
+        unique_species = len(species_summary)
+        
+        return dict(
+            species_summary=[
+                {
+                    'species': row.sightings.COMMON_NAME, 
+                    'total_count': row.total_count,
+                    'percentage': (row.total_count / total_observations * 100) if total_observations > 0 else 0
+                } for row in species_summary
+            ],
+            total_observations=total_observations,
+            unique_species=unique_species
+        )
+    
     except Exception as e:
-        logger.error(f"Error in get_regional_species: {str(e)}")
+        logger.error(f"Error in get_region_statistics: {str(e)}")
         return dict(error=str(e))
     
 @action("get_species_time_series", method=["POST"])
@@ -600,18 +626,34 @@ def get_species_time_series():
 @action.uses(db)
 def get_top_contributors():
     try:
-        contributors_data = db(db.my_checklist).select(
-            db.my_checklist.user_email,  # Use the correct field name
-            db.my_checklist.id.count().with_alias('total_observations'),
-            db.sightings.COMMON_NAME.count(distinct=True).with_alias('unique_species'),
-            groupby=db.my_checklist.user_email,  # Use the correct field name
-            orderby=~db.my_checklist.id.count()
+        # Ensure the correct table and field names are used
+        contributors_data = db(db.checklist).select(
+            db.checklist.OBSERVER_ID,
+            db.checklist.id.count().with_alias('total_observations'),
+            groupby=db.checklist.OBSERVER_ID,
+            orderby=~db.checklist.id.count(),
+            limitby=(0, 5)  # Limit to top 5
         )
-        return dict(contributors=[{
-            'name': row.my_checklist.user_email,  # Use the correct field name
-            'total_observations': row.total_observations,
-            'unique_species': row.unique_species
-        } for row in contributors_data])
+        
+        # Optionally, you can include unique species if needed
+        # This requires a join with the sightings table
+        contributors = []
+        for row in contributors_data:
+            unique_species_count = db(
+                (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER) &
+                (db.checklist.OBSERVER_ID == row.checklist.OBSERVER_ID)
+            ).select(
+                db.sightings.COMMON_NAME.count(distinct=True).with_alias('unique_species')
+            ).first().unique_species or 0
+            
+            contributors.append({
+                'name': row.checklist.OBSERVER_ID,
+                'total_observations': row.total_observations,
+                'unique_species': unique_species_count
+            })
+        
+        return dict(contributors=contributors)
+    
     except Exception as e:
         logger.error(f"Error in get_top_contributors: {str(e)}")
         return dict(error=str(e))

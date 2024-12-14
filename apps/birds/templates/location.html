@@ -437,7 +437,7 @@
                 const contributors = await dataManager.getTopContributors();
                 container.innerHTML = contributors.map(contributor => `
                     <div class="contributor-card">
-                        <h3>${contributor.name}</h3>
+                        <h3>${contributor.name || 'Anonymous'}</h3>
                         <p>Observations: ${contributor.total_observations}</p>
                         <p>Unique Species: ${contributor.unique_species}</p>
                     </div>
@@ -446,6 +446,7 @@
                 container.innerHTML = `<p>Error loading contributors: ${error.message}</p>`;
             }
         }
+
 
 
         // Showing Species Details with Enhanced Visualization
@@ -669,6 +670,7 @@
         charts.birdBreakdownChart.data.datasets[0].data = topSpeciesCounts;
         charts.birdBreakdownChart.update();
     }
+
 
     async function renderTopBirdsChart() {
             const topBirdsData = await dataManager.getTopBirdsData();
