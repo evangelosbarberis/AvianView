@@ -179,7 +179,7 @@
 </head>
 <body>
     <div class="container">
-        <a href="index.html" class="back-button" style="text-decoration: none; color: var(--text-color);">
+        <a href="/birds" class="back-button" style="text-decoration: none; color: var(--text-color);">
             <i class="fa-solid fa-arrow-left"></i> Back to Home
         </a>
         <h1><i class="fa-solid fa-binoculars"></i> Location Details</h1>
@@ -781,88 +781,88 @@
 
     // Dynamically update charts with data fetched from the server
     async function updateCharts() {
-        try {
-            const topBirdSpeciesCanvas = document.getElementById('topBirdSpeciesCanvas');
-            const birdObservationTimesCanvas = document.getElementById('birdObservationTimesCanvas');
+    try {
+        const topBirdSpeciesCanvas = document.getElementById('topBirdSpeciesCanvas');
+        const birdObservationTimesCanvas = document.getElementById('birdObservationTimesCanvas');
 
-            // Fetch both top birds and bird observation times data
-            const [topBirdsData, birdTimeData] = await Promise.all([
-                dataManager.getTopBirdsData(),
-                dataManager.getBirdObservationTimes()
-            ]);
+        // Fetch both top birds and bird observation times data
+        const [topBirdsData, birdTimeData] = await Promise.all([
+            dataManager.getTopBirdsData(),
+            dataManager.getBirdObservationTimes()
+        ]);
 
-            const COLOR_PALETTE = [
-                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
-                '#FF9F40', '#C9CBCF', '#FFA07A', '#00CED1', '#8A2BE2'
-            ];
+        const COLOR_PALETTE = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+            '#FF9F40', '#C9CBCF', '#FFA07A', '#00CED1', '#8A2BE2'
+        ];
 
-            // Top Bird Species Chart
-            if (topBirdsData && topBirdsData.length > 0) {
-                new Chart(topBirdSpeciesCanvas, {
-                    type: 'pie',
-                    data: {
-                        labels: topBirdsData.map(item => item.species),
-                        datasets: [{
-                            data: topBirdsData.map(item => item.total_count),
-                            backgroundColor: COLOR_PALETTE.slice(0, topBirdsData.length)
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { 
-                            title: {
-                                display: true,
-                                text: 'Top Bird Species by Observation Count'
-                            },
-                            legend: { 
-                                position: 'bottom',
-                                labels: {
-                                    boxWidth: 20
-                                }
+        // Top Bird Species Chart
+        if (topBirdsData && topBirdsData.length > 0) {
+            new Chart(topBirdSpeciesCanvas, {
+                type: 'pie',
+                data: {
+                    labels: topBirdsData.map(item => item.species),
+                    datasets: [{
+                        data: topBirdsData.map(item => item.total_count),
+                        backgroundColor: COLOR_PALETTE.slice(0, topBirdsData.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        title: {
+                            display: true,
+                            text: 'Top Bird Species by Observation Count'
+                        },
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 20
                             }
                         }
                     }
-                });
-            } else {
-                console.warn('No data available for top bird species.');
-            }
-
-            // Bird Observation Times Chart
-            if (birdTimeData && birdTimeData.length > 0) {
-                new Chart(birdObservationTimesCanvas, {
-                    type: 'pie',
-                    data: {
-                        labels: birdTimeData.map(item => item.species),
-                        datasets: [{
-                            data: birdTimeData.map(item => item.total_minutes),
-                            backgroundColor: COLOR_PALETTE.slice(0, birdTimeData.length)
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { 
-                            title: {
-                                display: true,
-                                text: 'Top Birds by Observation Time (Minutes)'
-                            },
-                            legend: { 
-                                position: 'bottom',
-                                labels: {
-                                    boxWidth: 20
-                                }
-                            }
-                        }
-                    }
-                });
-            } else {
-                console.warn('No data available for bird observation times.');
-            }
-        } catch (error) {
-            console.error('Error updating charts:', error);
+                }
+            });
+        } else {
+            console.warn('No data available for top bird species.');
         }
+
+        // Bird Observation Times Chart
+        if (birdTimeData && birdTimeData.length > 0) {
+            new Chart(birdObservationTimesCanvas, {
+                type: 'pie',
+                data: {
+                    labels: birdTimeData.map(item => item.species),
+                    datasets: [{
+                        data: birdTimeData.map(item => item.total_minutes),
+                        backgroundColor: COLOR_PALETTE.slice(0, birdTimeData.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        title: {
+                            display: true,
+                            text: 'Top Birds by Observation Time (Minutes)'
+                        },
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 20
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            console.warn('No data available for bird observation times.');
+        }
+    } catch (error) {
+        console.error('Error updating charts:', error);
     }
+}
 
         
 
