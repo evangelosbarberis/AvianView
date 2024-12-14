@@ -94,26 +94,17 @@
                         <thead>
                             <tr>
                                 <th>Species Name</th>
-                                <th>Count</th>
-                                <th>Actions</th>
+                                <th>Include</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="species in filteredSpecies" :key="species.id">
                                 <td>{{ species.COMMON_NAME }}</td>
                                 <td>
-                                    <input
-                                        type="number"
-                                        class="input is-small"
-                                        v-model.number="species.count"
-                                        min="0"
-                                    />
-                                </td>
-                                <td>
                                     <button
                                         class="button is-small is-info"
                                         @click="incrementCount(species)"
-                                    >+1</button>
+                                    >Add</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -142,7 +133,6 @@
                                             class="input"
                                             type="text"
                                             v-model="latitude"
-                                            readonly
                                             placeholder="Latitude will be auto-filled"
                                         >
                                     </div>
@@ -157,7 +147,6 @@
                                             class="input"
                                             type="text"
                                             v-model="longitude"
-                                            readonly
                                             placeholder="Longitude will be auto-filled"
                                         >
                                     </div>
