@@ -503,26 +503,27 @@ def get_species_statistics():
         if not species_name:
             return dict(error="No species specified")
         
-        # Calculate total species observations
+        # Calculate total species observations specifically for this species
         total_species_observations = db(
             (db.sightings.COMMON_NAME == species_name)
         ).select(
             db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count')
         ).first().total_count or 0
         
-        # Find top hotspot for the species
+        # Find top hotspot specifically for this species
         top_hotspot = db(
-            (db.sightings.COMMON_NAME == species_name)
+            (db.sightings.COMMON_NAME == species_name) &
+            (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.my_checklist.id)
         ).select(
-            db.checklist.LATITUDE, 
-            db.checklist.LONGITUDE,
+            db.my_checklist.LATITUDE, 
+            db.my_checklist.LONGITUDE,
             db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
-            groupby=(db.checklist.LATITUDE, db.checklist.LONGITUDE),
+            groupby=(db.my_checklist.LATITUDE, db.my_checklist.LONGITUDE),
             orderby=~db.sightings.OBSERVATION_COUNT.sum(),
             limitby=(1,0)
         ).first()
         
-        # Total species observations across all regions
+        # Total species observations globally
         total_species_observations_global = db(
             db.sightings.COMMON_NAME == species_name
         ).count()
@@ -531,9 +532,9 @@ def get_species_statistics():
         top_hotspot_data = None
         if top_hotspot:
             top_hotspot_data = {
-                'latitude': top_hotspot.checklist.LATITUDE,
-                'longitude': top_hotspot.checklist.LONGITUDE,
-                'location': f"Lat {top_hotspot.checklist.LATITUDE}, Lon {top_hotspot.checklist.LONGITUDE}",
+                'latitude': top_hotspot.my_checklist.LATITUDE,
+                'longitude': top_hotspot.my_checklist.LONGITUDE,
+                'location': f"Lat {top_hotspot.my_checklist.LATITUDE}, Lon {top_hotspot.my_checklist.LONGITUDE}",
                 'count': top_hotspot.total_count
             }
         

@@ -113,6 +113,27 @@
         .chart-container {
             height: 400px;
         }
+        .chart-container {
+            height: 400px;
+            width: 100%;
+        }
+
+        .custom-div-icon {
+            margin-left: -12px;
+            margin-top: -36px;
+        }
+        .marker-pin {
+            width: 20px;
+            height: 20px;
+            border-radius: 50% 50% 50% 0;
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            border: 3px solid #FFFFFF;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        
     </style>
 </head>
 <body>
@@ -130,6 +151,12 @@
         <div class="card">
             <h2>Most Observed Birds</h2>
             <div id="top-birds-chart" class="chart-container"></div>
+        </div>
+
+        <!-- New card for detailed bird breakdown -->
+        <div class="card">
+            <h2>Bird Observation Breakdown</h2>
+            <div id="bird-breakdown-chart" class="chart-container"></div>
         </div>
     </div>
 
@@ -182,8 +209,6 @@
 
             // Instant search with local filtering
             async searchSpecies(searchTerm) {
-                const cacheKey = `search_${searchTerm.toLowerCase()}`;
-                
                 // Check cache or fetch full species list
                 if (!this.speciesCache['full_species']) {
                     const response = await this.fetchWithCache('/birds/search_species', {}, 'full_species');
@@ -197,24 +222,49 @@
                     sp.COMMON_NAME.toLowerCase().includes(searchTerm.toLowerCase())
                 );
 
-                // Fetch details for top results asynchronously
+                // Fetch details for top results asynchronously with hotspot information
                 const speciesDetails = await Promise.all(
                     filteredSpecies.slice(0, 10).map(sp => this.getSpeciesStatistics(sp.COMMON_NAME))
                 );
 
-                return filteredSpecies.slice(0, 10).map((sp, index) => ({
-                    ...sp,
-                    ...speciesDetails[index]
-                }));
+                return filteredSpecies.slice(0, 10).map((sp, index) => {
+                    const details = speciesDetails[index];
+                    return {
+                        ...sp,
+                        total_observations: details.total_observations,
+                        top_hotspot: details.top_hotspot 
+                            ? `${details.top_hotspot.location} (${details.top_hotspot.count} observations)`
+                            : 'No specific hotspot'
+                    };
+                });
             }
 
             async getSpeciesStatistics(speciesName) {
-                return this.fetchWithCache('/birds/get_species_statistics', {
+                const response = await this.fetchWithCache('/birds/get_species_statistics', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ species: speciesName })
                 }, `species_stats_${speciesName}`);
+                
+                return response;
             }
+
+            async getSpeciesHotspot(speciesName) {
+                try {
+                    const response = await fetch('/birds/get_species_statistics', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ species: speciesName })
+                    });
+                    const data = await response.json();
+                    return data.top_hotspot;
+                } catch (error) {
+                    console.error('Error fetching species hotspot:', error);
+                    return null;
+                }
+            }
+
+
 
             async getSpeciesObservations(speciesName) {
                 try {
@@ -243,12 +293,9 @@
                 const regionData = await this.fetchWithCache('/birds/get_region_statistics');
                 
                 if (regionData?.species_summary) {
-                    const topSpecies = regionData.species_summary
-                        .sort((a, b) => b.total_count - a.total_count)
-                        .slice(0, 3);
-                    
-                    this.topSpeciesCache = topSpecies;
-                    return topSpecies;
+                    // Return all species instead of slicing to top 3
+                    this.topSpeciesCache = regionData.species_summary;
+                    return regionData.species_summary;
                 }
                 
                 return [];
@@ -258,7 +305,7 @@
         const dataManager = new DataManager();
 
         // Optimized Search and Rendering
-        function setupSpeciesSearch() {
+        async function setupSpeciesSearch() {
             const searchInput = document.getElementById('species-search-input');
             const speciesList = document.getElementById('species-list');
 
@@ -279,11 +326,6 @@
                         speciesList.innerHTML = species.map(sp => `
                             <div class="species-card" data-species="${sp.COMMON_NAME}">
                                 <h3>${sp.COMMON_NAME}</h3>
-                                <p>Total Observations: ${sp.total_observations || 0}</p>
-                                <p>Top Hotspot: ${sp.top_hotspot ? 
-                                    `${sp.top_hotspot.location} (${sp.top_hotspot.count} observations)` : 
-                                    'No specific hotspot'}
-                                </p>
                             </div>
                         `).join('');
 
@@ -300,107 +342,219 @@
 
         // Showing Species Details with Enhanced Visualization
         // Showing Species Details with Enhanced Visualization
-async function showSpeciesDetails(speciesName) {
-    const modal = document.getElementById('species-modal');
-    const modalSpeciesName = document.getElementById('modal-species-name');
-    const speciesDetails = document.getElementById('species-details');
-    const observationMap = document.getElementById('observation-map');
+        async function showSpeciesDetails(speciesName) {
+            const modal = document.getElementById('species-modal');
+            const modalSpeciesName = document.getElementById('modal-species-name');
+            const speciesDetails = document.getElementById('species-details');
+            const observationMap = document.getElementById('observation-map');
 
-    modalSpeciesName.textContent = speciesName;
-    modal.style.display = 'block';
+            // Clear any existing map
+            if (window.speciesMap) {
+                window.speciesMap.remove();
+            }
 
-    // Reset the map before showing new data
-    observationMap.innerHTML = ''; // Clear any existing content in the map container
-    const map = L.map('observation-map').setView([0, 0], 2); // Reset the map view
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            modalSpeciesName.textContent = speciesName;
+            modal.style.display = 'block';
 
-    try {
-        // Fetch species statistics and observations
-        const [stats, observationsData] = await Promise.all([
-            dataManager.getSpeciesStatistics(speciesName),
-            dataManager.getSpeciesObservations(speciesName)
-        ]);
+            // Reset the map 
+            observationMap.innerHTML = '';
+            const map = L.map('observation-map').setView([0, 0], 2);
+            window.speciesMap = map;  // Store map globally for future cleanup
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Populate species details
-        speciesDetails.innerHTML = `
-            <p><strong>Total Observations:</strong> ${stats.total_observations}</p>
-            <p><strong>Global Species Observations:</strong> ${stats.total_species_observations}</p>
-        `;
+            try {
+                // Fetch species statistics and observations
+                const [stats, observationsData] = await Promise.all([
+                    dataManager.getSpeciesStatistics(speciesName),
+                    dataManager.getSpeciesObservations(speciesName)
+                ]);
 
-        // Create observation map with specific bird sightings
-        if (observationsData.sightings.length > 0) {
-            // Add markers for each observation point
-            observationsData.sightings.forEach(sighting => {
-                L.marker([sighting.lat, sighting.lon])
+                // Enhanced Hotspot Selection
+                let bestHotspot = null;
+                if (observationsData.sightings.length > 0) {
+                    // Group observations by location
+                    const locationCounts = observationsData.sightings.reduce((acc, sighting) => {
+                        const key = `${sighting.lat.toFixed(2)},${sighting.lon.toFixed(2)}`;
+                        acc[key] = (acc[key] || 0) + 1;
+                        return acc;
+                    }, {});
+
+                    // Find the location with the most observations
+                    const mostFrequentLocationKey = Object.keys(locationCounts).reduce(
+                        (a, b) => locationCounts[a] > locationCounts[b] ? a : b
+                    );
+
+                    // Convert the key back to coordinates
+                    const [lat, lon] = mostFrequentLocationKey.split(',').map(parseFloat);
+                    bestHotspot = { latitude: lat, longitude: lon, count: locationCounts[mostFrequentLocationKey] };
+                }
+
+                // Prepare hotspot information
+                let hotspotInfo = 'No specific hotspot found';
+                let hotspotCoordinates = 'N/A';
+
+                if (bestHotspot) {
+                    hotspotInfo = `Coordinates: ${bestHotspot.latitude.toFixed(4)}, ${bestHotspot.longitude.toFixed(4)} (${bestHotspot.count} observations)`;
+                    hotspotCoordinates = `Lat: ${bestHotspot.latitude.toFixed(4)}, Lon: ${bestHotspot.longitude.toFixed(4)}`;
+                    
+                    // Set map view to hotspot
+                    map.setView([bestHotspot.latitude, bestHotspot.longitude], 10);
+                    
+                    // Add a red marker for the hotspot
+                    L.marker([bestHotspot.latitude, bestHotspot.longitude], {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style='background-color:red;' class='marker-pin'></div>`,
+                            iconSize: [30, 42],
+                            iconAnchor: [15, 42]
+                        })
+                    })
                     .addTo(map)
-                    .bindPopup(`${speciesName} observed here`);
-            });
+                    .bindPopup(`${speciesName} Most Frequent Location<br>Observations: ${bestHotspot.count}`)
+                    .openPopup();
+                }
 
-            // Adjust map bounds to fit all markers
-            const bounds = observationsData.sightings.map(sighting => [sighting.lat, sighting.lon]);
-            map.fitBounds(bounds); // Adjust the map view to fit the markers
+                // Update species details with more information
+                speciesDetails.innerHTML = `
+                    <p><strong>Total Local Observations:</strong> ${stats.total_observations}</p>
+                    <p><strong>Total Global Observations:</strong> ${stats.total_species_observations}</p>
+                    <p><strong>Most Frequent Location:</strong> ${hotspotInfo}</p>
+                    <p><strong>Location Coordinates:</strong> ${hotspotCoordinates}</p>
+                `;
+
+            } catch (error) {
+                console.error('Error fetching species details:', error);
+                speciesDetails.innerHTML = `<p>Error loading species details: ${error.message}</p>`;
+            }
         }
-    } catch (error) {
-        console.error('Error fetching species details:', error);
-    }
-}
+
 
         // Top Birds Chart with Detailed Visualization
         async function createTopBirdsChart() {
             try {
-                const topSpecies = await dataManager.getTopBirdsData();
+                const allSpecies = await dataManager.getTopBirdsData();
                 
-                const ctx = document.getElementById('top-birds-chart').getContext('2d');
-                new Chart(ctx, {
+                const topBirdsChartElement = document.getElementById('top-birds-chart');
+                const birdBreakdownChartElement = document.getElementById('bird-breakdown-chart');
+
+                if (!topBirdsChartElement || !birdBreakdownChartElement) {
+                    console.error('Chart canvas elements not found');
+                    return;
+                }
+
+                const topBirdsCtx = topBirdsChartElement.getContext('2d');
+                const birdBreakdownCtx = birdBreakdownChartElement.getContext('2d');
+
+                if (window.topBirdsChart) {
+                    window.topBirdsChart.destroy();
+                }
+                if (window.birdBreakdownChart) {
+                    window.birdBreakdownChart.destroy();
+                }
+
+                // Use all species data for the charts
+                window.topBirdsChart = new Chart(topBirdsCtx, {
                     type: 'bar',
                     data: {
-                        labels: topSpecies.map(sp => sp.species),
+                        labels: allSpecies.map(sp => sp.species),
                         datasets: [{
                             label: 'Total Bird Observations',
-                            data: topSpecies.map(sp => sp.total_count),
-                            backgroundColor: [
-                                'rgba(255, 99, 132, 0.6)',  // Red
-                                'rgba(54, 162, 235, 0.6)',  // Blue
-                                'rgba(255, 206, 86, 0.6)'   // Yellow
-                            ]
+                            data: allSpecies.map(sp => sp.total_count),
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)'  // Example color
                         }]
                     },
                     options: {
                         responsive: true,
-                        indexAxis: 'y',  // Horizontal bar chart for better readability
+                        maintainAspectRatio: false,
                         scales: {
                             x: {
                                 beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Number of Observations'
-                                }
+                                title: { display: true, text: 'Number of Observations' }
                             }
                         },
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'Top 3 Most Observed Birds in the Region',
-                                font: {
-                                    size: 16
-                                }
+                                text: 'Bird Observations',
+                                font: { size: 16 }
                             }
                         }
                     }
                 });
+
+                window.birdBreakdownChart = new Chart(birdBreakdownCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: allSpecies.map(sp => sp.species),
+                        datasets: [{
+                            data: allSpecies.map(sp => sp.total_count),
+                            backgroundColor: allSpecies.map((_, i) => `rgba(${(i * 50) % 255}, ${(i * 80) % 255}, ${(i * 100) % 255}, 0.6)`)
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Bird Species Observation Breakdown',
+                                font: { size: 16 }
+                            }
+                        }
+                    }
+                });
+
             } catch (error) {
                 console.error('Error creating top birds chart:', error);
             }
         }
+
+        function createBirdBreakdownChart(topSpecies) {
+            const ctx = document.getElementById('bird-breakdown-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: topSpecies.map(sp => sp.species),
+                    datasets: [{
+                        data: topSpecies.map(sp => sp.total_count),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',  // Red
+                            'rgba(54, 162, 235, 0.6)',  // Blue
+                            'rgba(255, 206, 86, 0.6)'   // Yellow
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Bird Species Observation Breakdown',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
 
         // Modal Close Functionality
         document.querySelector('.close-modal').addEventListener('click', () => {
             const modal = document.getElementById('species-modal');
             modal.style.display = 'none';
 
-            // Reset the map when the modal is closed
+            // Remove the map completely
+            if (window.speciesMap) {
+                window.speciesMap.remove();
+                window.speciesMap = null;
+            }
+
+            // Reset the map container
             const observationMap = document.getElementById('observation-map');
-            observationMap.innerHTML = '';  // Clear map content
+            observationMap.innerHTML = '';
         });
 
 
