@@ -548,3 +548,70 @@ def get_species_statistics():
     except Exception as e:
         logger.error(f"Error in get_species_statistics: {str(e)}")
         return dict(error=str(e))
+    
+@action("get_regional_species", method=["GET"])
+@action.uses(db)
+def get_regional_species():
+    try:
+        species_data = db(
+            (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER)
+        ).select(
+            db.sightings.COMMON_NAME,
+            db.checklist.id.count().with_alias('checklists'),
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_sightings'),
+            groupby=db.sightings.COMMON_NAME
+        )
+        return dict(species=[{
+            'name': row.sightings.COMMON_NAME,
+            'checklists': row.checklists,
+            'total_sightings': row.total_sightings
+        } for row in species_data])
+    except Exception as e:
+        logger.error(f"Error in get_regional_species: {str(e)}")
+        return dict(error=str(e))
+    
+@action("get_species_time_series", method=["POST"])
+@action.uses(db)
+def get_species_time_series():
+    try:
+        species_name = request.json.get('species')
+        if not species_name:
+            return dict(error="No species specified")
+        
+        # Query to get time series data
+        time_series_data = db(
+            (db.sightings.COMMON_NAME == species_name) &
+            (db.sightings.SAMPLING_EVENT_IDENTIFIER == db.checklist.SAMPLING_EVENT_IDENTIFIER)
+        ).select(
+            db.checklist.OBSERVATION_DATE,
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('count'),
+            groupby=db.checklist.OBSERVATION_DATE,
+            orderby=db.checklist.OBSERVATION_DATE
+        )
+        return dict(time_series=[{
+            'date': row.checklist.OBSERVATION_DATE,
+            'count': row.count
+        } for row in time_series_data])
+    except Exception as e:
+        logger.error(f"Error in get_species_time_series: {str(e)}")
+        return dict(error=str(e))
+    
+@action("get_top_contributors", method=["GET"])
+@action.uses(db)
+def get_top_contributors():
+    try:
+        contributors_data = db(db.my_checklist).select(
+            db.my_checklist.user_email,  # Use the correct field name
+            db.my_checklist.id.count().with_alias('total_observations'),
+            db.sightings.COMMON_NAME.count(distinct=True).with_alias('unique_species'),
+            groupby=db.my_checklist.user_email,  # Use the correct field name
+            orderby=~db.my_checklist.id.count()
+        )
+        return dict(contributors=[{
+            'name': row.my_checklist.user_email,  # Use the correct field name
+            'total_observations': row.total_observations,
+            'unique_species': row.unique_species
+        } for row in contributors_data])
+    except Exception as e:
+        logger.error(f"Error in get_top_contributors: {str(e)}")
+        return dict(error=str(e))
