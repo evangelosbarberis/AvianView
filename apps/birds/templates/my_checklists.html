@@ -15,6 +15,7 @@
             --text-color: #ffd700;
             --card-bg: #8fbc8f;
             --card-text: #ffffff;
+            --yellow-bg: #ffd700;
         }
 
         body {
@@ -24,6 +25,7 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             transition: all 0.3s ease;
+            position: relative; /* Needed for absolute positioning */
         }
 
         .container {
@@ -34,6 +36,7 @@
         .species-search {
             display: flex;
             margin-bottom: 20px;
+            justify-content: center; /* Center the search bar */
         }
 
         #species-search-input {
@@ -42,12 +45,15 @@
             border-radius: 5px;
             border: none;
             font-size: 16px;
+            background-color: var(--yellow-bg);
+            color: var(--bg-color);
         }
 
         .species-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
+            justify-content: center; /* Center the species list */
         }
 
         .modal {
@@ -84,9 +90,11 @@
             margin-top: -36px;
         }
 
+        /* Back Button Positioning */
         .back-button {
-            display: inline-block;
-            margin-bottom: 20px;
+            position: absolute; /* Absolute positioning */
+            top: 20px; /* Distance from top */
+            left: 20px; /* Distance from left */
             font-size: 18px;
             transition: color 0.3s ease;
         }
@@ -94,87 +102,140 @@
         .back-button:hover {
             color: #fff; /* Change color on hover */
         }
+
+        .header {
+            display: flex;
+            justify-content: center; /* Center the content */
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            max-width: 350px; /* Adjust this size */
+            max-height: 350px; /* Maintain aspect ratio */
+        }
+
+        .yellow-box {
+            background-color: var(--yellow-bg);
+            color: var(--bg-color);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .btn {
+            background-color: var(--yellow-bg); /* Yellow background for buttons */
+            color: var(--bg-color); /* Dark text color */
+            padding: 10px 15px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #ffcc00; /* Slightly darker yellow on hover */
+        }
+
+        .btn.bg-red-600 {
+            background-color: #ff6347; /* Change delete button color to a red-like tone */
+        }
+
+        .btn.bg-red-600:hover {
+            background-color: #ff4500; /* Darker red on hover */
+        }
     </style>
 </head>
 <body>
-<div class="container mx-auto px-4 py-6" id="app" v-cloak>
-    <!-- Header Section -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="container mx-auto px-4 py-6" id="app" v-cloak>
+        <!-- Back Button -->
         <a href="/birds" class="back-button" style="text-decoration: none; color: var(--text-color);">
             <i class="fa-solid fa-arrow-left"></i> Back to Home
         </a>
-        <div class="flex items-center">
-          <img src="/birds/static/Images/logo.png" alt="AvianView Logo" class="logo">
-            <h1 class="text-3xl font-bold text-[var(--text-color)]">
-                <i class="fas fa-list mr-2"></i> My Checklists
+    
+        <!-- Header Section -->
+        <div class="header">
+            <img src="/birds/static/Images/logo.png" alt="AvianView Logo" class="logo">
+        </div>
+    
+        <!-- Main Title -->
+        <div class="flex items-center justify-center mb-6">
+            <h1 class="text-4xl font-extrabold text-[var(--text-color)]">
+                <i class="fas fa-list mr-3"></i> My Checklists
             </h1>
         </div>
-        <!-- Add Button -->
-        <button
-            @click="addNewChecklist"
-            class="btn bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-white px-4 py-2 rounded transition"
-        >
-            Add New Checklist
-        </button>
-    </div>
-
-    <!-- Main Content Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-[1fr,256px] gap-6">
-        <!-- Checklists Table -->
-        <div class="overflow-x-auto">
-            <table class="w-full bg-[var(--map-bg)] shadow-md rounded-lg">
-                <thead class="bg-[var(--button-bg)] text-white">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Species</th>
-                        <th class="px-4 py-3 text-left">Location</th>
-                        <th class="px-4 py-3 text-left">Date</th>
-                        <th class="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
-                        v-for="(checklist, index) in filteredChecklists"
-                        :key="checklist.id"
-                        class="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                    >
-                        <td class="px-4 py-3">{{ checklist.COMMON_NAME }}</td>
-                        <td class="px-4 py-3">
-                            {{ checklist.LATITUDE }}, {{ checklist.LONGITUDE }}
-                        </td>
-                        <td class="px-4 py-3">{{ checklist.OBSERVATION_DATE }}</td>
-                        <td class="px-4 py-3 text-center">
-                            <div class="flex justify-center space-x-2">
-                                <button 
-                                    @click="editChecklist(index)" 
-                                    class="btn bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-white px-3 py-1 rounded transition"
-                                >
-                                    Edit
-                                </button>
-                                <button 
-                                    @click="deleteChecklist(checklist.id)" 
-                                    class="btn bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition"
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+    
+        <!-- Add New Checklist Button -->
+        <div class="flex items-center justify-center mb-6">
+            <button
+                @click="addNewChecklist"
+                class="btn bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-white px-4 py-2 rounded transition"
+            >
+                Add New Checklist
+            </button>
         </div>
-
-        <!-- Search Sidebar -->
-        <div class="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md h-fit">
-            <h2 class="text-lg font-bold text-[var(--text-color)] mb-4">Search Species</h2>
-            <input
-                class="input w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 dark:text-white"
-                type="text"
-                v-model="searchQuery"
-                placeholder="Search species..."
-            />
+    
+        <!-- Main Content Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr,256px] gap-6">
+    
+            <!-- Search Bar -->
+            <div class="yellow-box mb-6">
+                <h2 class="text-lg font-bold mb-4 text-center">Search Species</h2>
+                <input
+                    class="input w-full px-3 py-2 border rounded"
+                    type="text"
+                    v-model="searchQuery"
+                    placeholder="Search species..."
+                />
+            </div>
+    
+            <!-- Checklists Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full bg-[var(--map-bg)] shadow-md rounded-lg">
+                    <thead class="bg-[var(--button-bg)] text-white">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Species</th>
+                            <th class="px-4 py-3 text-left">Location</th>
+                            <th class="px-4 py-3 text-left">Date</th>
+                            <th class="px-4 py-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="(checklist, index) in filteredChecklists"
+                            :key="checklist.id"
+                            class="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                        >
+                            <td class="px-4 py-3">{{ checklist.COMMON_NAME }}</td>
+                            <td class="px-4 py-3">
+                                {{ checklist.LATITUDE }}, {{ checklist.LONGITUDE }}
+                            </td>
+                            <td class="px-4 py-3">{{ checklist.OBSERVATION_DATE }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex justify-center space-x-2">
+                                    <button 
+                                        @click="editChecklist(index)" 
+                                        class="btn bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-white px-3 py-1 rounded transition"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        @click="deleteChecklist(checklist.id)" 
+                                        class="btn bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+    
+            <!-- Species List -->
+            <div class="species-list">
+                <!-- Add species content here -->
+            </div>
         </div>
     </div>
-</div>
+    
 </body>
 [[block page_scripts]]
 <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
