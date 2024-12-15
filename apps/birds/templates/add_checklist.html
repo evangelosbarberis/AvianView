@@ -347,7 +347,7 @@
                     // Add new species
                     const newSpecies = {
                         ...this.currentSpecies, 
-                        count: this.speciesCount,
+                        count: this.speciesCount,  // Ensure this is the correct count
                         id: this.currentSpecies.id
                     };
                     this.addedSpecies.push(newSpecies);
@@ -403,7 +403,7 @@
                         durationMinutes: this.durationMinutes,
                         species: this.addedSpecies.map(s => ({
                             COMMON_NAME: s.COMMON_NAME,
-                            count: s.count
+                            count: s.count  // This looks correct
                         }))
                     };
 

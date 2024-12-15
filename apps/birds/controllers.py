@@ -12,7 +12,7 @@ class ChecklistManager:
         """
         Retrieve checklists from a specified table
         
-        Args:
+       Args:
             table: Database table to retrieve checklists from (default: checklist)
         
         Returns:
@@ -27,15 +27,6 @@ class ChecklistManager:
 
     @classmethod
     def submit_checklist(cls, data):
-        """
-        Submit a new checklist with associated species sightings
-        
-        Args:
-            data (dict): Checklist and sighting data
-        
-        Returns:
-            dict: Submission status
-        """
         try:
             # Validate required fields
             if not all(key in data for key in ['speciesName', 'latitude', 'longitude', 'observationDate']):
@@ -58,7 +49,7 @@ class ChecklistManager:
                 db.sightings.insert(
                     SAMPLING_EVENT_IDENTIFIER=checklist_id,
                     COMMON_NAME=species.get("COMMON_NAME"),
-                    OBSERVATION_COUNT=int(species.get("count", 1))
+                    OBSERVATION_COUNT=int(species.get("count", 1))  # Ensure this uses the correct count
                 )
             
             db.commit()
@@ -68,7 +59,7 @@ class ChecklistManager:
             db.rollback()
             logger.error(f"Checklist submission error: {str(e)}")
             return dict(status="error", message=str(e))
-
+        
     @classmethod
     def modify_checklist(cls, checklist_id, action_type, data=None):
         """
@@ -410,6 +401,53 @@ def delete_checklist(checklist_id):
 def edit_checklist(checklist_id):
     """Edit a specific checklist"""
     return ChecklistManager.modify_checklist(checklist_id, 'edit', request.json)
+
+@action("get_checklist_species_count", method=["GET"])
+@action.uses(db)
+def get_checklist_species_count():
+    """
+    Retrieve species count for a specific checklist with detailed information
+    """
+    try:
+        checklist_id = request.params.get('checklist_id')
+        if not checklist_id:
+            logger.error("No checklist ID provided")
+            return dict(error="No checklist ID provided", species_count=0, total_observations=0)
+        
+        # Log the checklist ID for debugging
+        logger.info(f"Fetching species count for checklist ID: {checklist_id}")
+        
+        # Query to get species count and total observations for the checklist
+        species_data = db(
+            db.sightings.SAMPLING_EVENT_IDENTIFIER == int(checklist_id)
+        ).select(
+            db.sightings.COMMON_NAME, 
+            db.sightings.OBSERVATION_COUNT.sum().with_alias('total_count'),
+            groupby=db.sightings.COMMON_NAME
+        )
+        
+        # Calculate total species count and total observations
+        species_count = len(species_data)
+        total_observations = sum(row.total_count for row in species_data)
+        
+        # Log the results
+        logger.info(f"Species count for checklist {checklist_id}: {species_count}")
+        logger.info(f"Total observations for checklist {checklist_id}: {total_observations}")
+        
+        return dict(
+            species_count=species_count, 
+            total_observations=total_observations,
+            species_details=[
+                {
+                    'species': row.sightings.COMMON_NAME, 
+                    'count': row.total_count
+                } for row in species_data
+            ]
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_checklist_species_count: {str(e)}")
+        return dict(error=str(e), species_count=0, total_observations=0)
 
 # @action("get_region_statistics", method=["GET"])
 # @action.uses(db)
