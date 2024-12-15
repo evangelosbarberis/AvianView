@@ -25,23 +25,15 @@
             transition: all 0.3s ease;
         }
 
-        body.dark-mode {
-            background-color: var(--dark-bg-color);
-            color: var(--dark-text-color);
-        }
-
         .section {
             background-color: transparent;
         }
 
-        .checklist-container {
+        .stats-card {
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             padding: 20px;
-        }
-
-        body.dark-mode .checklist-container {
-            background-color: rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
         }
 
         .theme-toggle {
@@ -57,13 +49,8 @@
             color: var(--bg-color);
         }
 
-        body.dark-mode .theme-toggle {
-            background-color: var(--dark-text-color);
-            color: var(--dark-bg-color);
-        }
-
-        .species-search-column {
-            max-height: 70vh;
+        .species-list {
+            max-height: 400px;
             overflow-y: auto;
         }
 
@@ -86,96 +73,103 @@
         <a href="/birds" class="back-button" style="text-decoration: none; color: var(--text-color);">
             <i class="fa-solid fa-arrow-left"></i> Back to Home
         </a>
-        <h1 class="title"><i class="fa-solid fa-chart-bar"></i> User Statistics</h1>
+        <h1 class="title"><i class="fa-solid fa-chart-bar"></i> User Bird Statistics</h1>
 
-        <!-- Search Bar for Species -->
-        <div class="field">
-            <label class="label">Search Species</label>
-            <div class="control">
-                <input
-                    class="input"
-                    type="text"
-                    v-model="searchQuery"
-                    @input="fetchSpecies"
-                    placeholder="Type to search species..."
-                />
-            </div>
-        </div>
+        <!-- Species Search and Selection -->
+        <div class="columns">
+            <div class="column is-4">
+                <div class="field">
+                    <label class="label">Search Bird Species</label>
+                    <div class="control">
+                        <input
+                            class="input"
+                            type="text"
+                            v-model="searchQuery"
+                            @input="fetchSpecies"
+                            placeholder="Type to search species..."
+                        />
+                    </div>
+                </div>
 
-        <!-- List of Species Seen -->
-        <table class="table is-fullwidth">
-            <thead>
-                <tr>
-                    <th>Species Name</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr v-for="species in filteredSpecies" :key="species.id">
-                    <td>{{ species.COMMON_NAME }}</td>
-                    <td>
-                        <button class="button is-small is-info" @click="viewSpeciesDetails(species)">
-                            View Details
-                        </button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-        <!-- Species Details Visualization -->
-        <div v-if="selectedSpecies" class="box">
-            <h2 class="subtitle">Details for {{ selectedSpecies.COMMON_NAME }}</h2>
-
-            <!-- Loading Spinner -->
-            <div v-if="isLoading" class="has-text-centered">
-                <div class="spinner"></div>
-                <p>Loading statistics...</p>
+                <!-- Species List -->
+                <div class="species-list box">
+                    <table class="table is-fullwidth">
+                        <thead>
+                            <tr>
+                                <th>Species Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="species in filteredSpecies" :key="species.id">
+                                <td>{{ species.COMMON_NAME }}</td>
+                                <td>
+                                    <button class="button is-small is-info" @click="viewSpeciesDetails(species)">
+                                        View Details
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- Error Message -->
-            <div v-else-if="error" class="notification is-danger">
-                {{ error }}
-            </div>
+            <!-- Species Statistics Details -->
+            <div class="column is-8">
+                <div v-if="selectedSpecies" class="stats-card">
+                    <h2 class="subtitle">{{ selectedSpecies.COMMON_NAME }} Observations</h2>
 
-            <!-- Visualization Placeholder -->
-            <div class="content">
-                <p><strong>Times Observed:</strong> {{ selectedSpecies.OBSERVATION_COUNT }}</p>
-                <p><strong>Locations:</strong></p>
-                <div class="map-placeholder">[Map Placeholder]</div>
-            </div>
-        </div>
+                    <!-- Loading Spinner -->
+                    <div v-if="isLoading" class="has-text-centered">
+                        <div class="spinner"></div>
+                        <p>Loading statistics...</p>
+                    </div>
 
-        <!-- Species Statistics -->
-        <div v-if="speciesStatistics" class="content">
-            <h3>{{ speciesStatistics.species_name }} Statistics</h3>
-            <table class="table is-striped is-fullwidth">
-                <tr>
-                    <th>Total Observations</th>
-                    <td>{{ speciesStatistics.total_observations }}</td>
-                </tr>
-                <tr>
-                    <th>Unique Locations</th>
-                    <td>{{ speciesStatistics.unique_locations }}</td>
-                </tr>
-                <tr>
-                    <th>First Observed</th>
-                    <td>{{ speciesStatistics.first_observed }}</td>
-                </tr>
-                <tr>
-                    <th>Last Observed</th>
-                    <td>{{ speciesStatistics.last_observed }}</td>
-                </tr>
-                <tr>
-                    <th>Top Observation Months</th>
-                    <td>
-                        <ul>
-                            <li v-for="month in speciesStatistics.top_observation_months" :key="month.month">
-                                Month {{ month.month }}: {{ month.count }} observations
-                            </li>
-                        </ul>
-                    </td>
-                </tr>
-            </table>
+                    <!-- Error Message -->
+                    <div v-else-if="error" class="notification is-danger">
+                        {{ error }}
+                    </div>
+
+                    <!-- Species Statistics -->
+                    <div v-else-if="speciesStatistics" class="content">
+                        <div class="columns">
+                            <div class="column">
+                                <h3 class="subtitle">Overview</h3>
+                                <p><strong>Total Observations:</strong> {{ speciesStatistics.total_observations }}</p>
+                                <p><strong>Total Checklists:</strong> {{ speciesStatistics.total_checklists }}</p>
+                            </div>
+                            <div class="column">
+                                <h3 class="subtitle">Observation Range</h3>
+                                <p><strong>First Observed:</strong> {{ speciesStatistics.first_observation || 'N/A' }}</p>
+                                <p><strong>Last Observed:</strong> {{ speciesStatistics.last_observation || 'N/A' }}</p>
+                            </div>
+                        </div>
+
+                        <h3 class="subtitle mt-4">Species Summary</h3>
+                        <table class="table is-fullwidth is-striped">
+                            <thead>
+                                <tr>
+                                    <th>Species</th>
+                                    <th>Total Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="species in speciesStatistics.species_summary" :key="species.species">
+                                    <td>{{ species.species }}</td>
+                                    <td>{{ species.total_count }}</td>
+                                    <td>{{ species.percentage.toFixed(2) }}%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- No Statistics -->
+                    <div v-else class="notification is-info">
+                        Select a species to view its statistics.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
