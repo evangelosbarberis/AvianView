@@ -326,7 +326,7 @@
                 regionStatsButton.addEventListener('click', () => {
                     // Redirect to stats page with region parameters
                     const params = new URLSearchParams(selectedRegion);
-                    window.location.href = `/birds/stats?${params.toString()}`;
+                    window.location.href = `/birds/location?${params.toString()}`;
                 });
 
                 // Add the button near the map controls
