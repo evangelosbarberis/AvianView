@@ -1,6 +1,8 @@
 # AvianView
 AvianView is a bird-watching web application that allows users to track and visualize bird sightings through interactive maps, species-specific checklists, and detailed location and personal statistics. The app enables bird watchers to log their observations, explore bird densities across regions, and gain insights into their birding activities through intuitive Vue.js-powered pages that include features like map-based sighting tracking, species selection, and personalized bird-watching filters.
 
+## Video Example and Run Through
+https://youtu.be/rycbWt8Clik 
 
 ## How to Access and Run the Application
 
@@ -74,6 +76,7 @@ I am Evangelos Barberis, a Computer Science graduate student at the University o
 In the AvianView project, I played a pivotal role in developing and implementing key application components, including the index, checklist, user statistics, and location pages. My contributions extended beyond functionality to a holistic design approach, encompassing seamless visual integration of maps and graphs, a custom color scheme, original logo design, and robust database management and data retrieval strategies.
 
 ### Kevin Situ
+
 
 
 
