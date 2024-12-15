@@ -62,6 +62,13 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .map {
+            height: 300px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -99,62 +106,101 @@
                         </p>
                     </div>
                 </div>
-
-                <!-- Checklists Table -->
-                <div class="table-container">
-                    <table class="table is-fullwidth is-striped is-hoverable">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Common Name</th>
-                                <th>Latitude</th>
-                                <th>Longitude</th>
-                                <th>Duration (min)</th>
-                                <th>Species Count</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="checklist in checklists" :key="checklist.id">
-                                <td>{{ new Date(checklist.OBSERVATION_DATE).toLocaleDateString() }}</td>
-                                <td>{{ checklist.COMMON_NAME }}</td>
-                                <td>{{ checklist.LATITUDE.toFixed(4) }}</td>
-                                <td>{{ checklist.LONGITUDE.toFixed(4) }}</td>
-                                <td>{{ checklist.DURATION_MINUTES || 0 }}</td>
-                                <td>{{ checklist.species_count || 0 }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            
+                <!-- Searchable Species List -->
+                <input type="text" v-model="searchQuery" placeholder="Search species..." class="input is-small mb-2">
+                <div class="species-list">
+                    <ul>
+                        <li v-for="species in filteredSpecies" :key="species.COMMON_NAME" @click="viewSpecies(species)">
+                            {{ species.COMMON_NAME }}
+                        </li>
+                    </ul>
                 </div>
             </div>
+
+            <!-- Checklists Table -->
+            <div class="table-container">
+                <table class="table is-fullwidth is-striped is-hoverable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Common Name</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Duration (min)</th>
+                            <th>Species Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="checklist in checklists" :key="checklist.id" @click="viewSpecies(checklist)">
+                            <td>{{ new Date(checklist.OBSERVATION_DATE).toLocaleDateString() }}</td>
+                            <td>{{ checklist.COMMON_NAME }}</td>
+                            <td>{{ checklist.LATITUDE.toFixed(4) }}</td>
+                            <td>{{ checklist.LONGITUDE.toFixed(4) }}</td>
+                            <td>{{ checklist.DURATION_MINUTES || 0 }}</td>
+                            <td>{{ checklist.species_count || 0 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Species Details Modal -->
+        <div v-if="selectedSpecies" class="modal is-active">
+            <div class="modal-background" @click="closeSpeciesModal"></div>
+            <div class="modal-content">
+                <div class="box">
+                    <h2 class="subtitle">{{ selectedSpecies.COMMON_NAME }}</h2>
+                    <p><strong>First Sighting:</strong> {{ new Date(selectedSpecies.first_observation).toLocaleDateString() }}</p>
+                    <p><strong>Last Sighting:</strong> {{ new Date(selectedSpecies.last_observation).toLocaleDateString() }}</p>
+                    <div id="species-map" class="map"></div>
+                    <div class="chart-container">
+                        <canvas id="species-trend-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <button class="modal-close is-large" aria-label="close" @click="closeSpeciesModal"></button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
     <script>
     const app = Vue.createApp({
         data() {
             return {
                 checklists: [],
                 isLoading: true,
-                error: null
-            };
+                error: null,
+                selectedSpecies: null,
+                searchQuery: ''
+                };
         },
+
+        computed: {
+            filteredSpecies() {
+                if (!this.searchQuery) {
+                    return this.checklists;
+                }
+                return this.checklists.filter(checklist =>
+                    checklist.COMMON_NAME.toLowerCase().includes(this.searchQuery.toLowerCase())
+                );
+            }
+    },
         methods: {
             async fetchChecklists() {
                 this.isLoading = true;
                 this.error = null;
                 try {
                     const response = await axios.get('/birds/get_my_checklists');
-                    
-                    // Fetch species count for each checklist
                     const checklistsWithDetails = await Promise.all(
                         response.data.checklists.map(async (checklist) => {
                             try {
                                 const speciesCountResponse = await axios.get('/birds/get_checklist_species_count', {
                                     params: { checklist_id: checklist.id }
                                 });
-    
+
                                 return {
                                     ...checklist,
                                     species_count: speciesCountResponse.data.total_observations || 0,
@@ -171,24 +217,72 @@
                         })
                     );
 
-                    // Sort checklists by date in descending order
-                    this.checklists = checklistsWithDetails.sort((a, b) => 
-                        new Date(b.OBSERVATION_DATE) - new Date(a.OBSERVATION_DATE)
-                    );
+                    this.checklists = checklistsWithDetails.sort((a, b) => new Date(b.OBSERVATION_DATE) - new Date(a.OBSERVATION_DATE));
                 } catch (error) {
                     console.error('Error fetching checklists:', error);
                     this.error = 'Failed to fetch checklists';
                 } finally {
                     this.isLoading = false;
                 }
-            }
-        },
-        mounted() {
-            this.fetchChecklists();
-        }
-    });
+            },
+            async viewSpecies(species) {
+                try {
+                    const speciesData = await axios.get('/birds/get_species_data', {
+                        params: { checklist_id: species.id }
+                    });
 
-    app.mount('#app');
+                    this.selectedSpecies = speciesData.data;
+
+                    // Initialize map and chart
+                    this.initMap();
+                    this.initTrendChart(speciesData.data);
+                } catch (error) {
+                    console.error('Error fetching species data:', error);
+                }
+            },
+            closeSpeciesModal() {
+                this.selectedSpecies = null;
+            },
+            initMap() {
+                const map = L.map('species-map').setView([this.selectedSpecies.LATITUDE, this.selectedSpecies.LONGITUDE], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                L.marker([this.selectedSpecies.LATITUDE, this.selectedSpecies.LONGITUDE]).addTo(map)
+                    .bindPopup(`${this.selectedSpecies.COMMON_NAME} sighting`);
+            },
+            initTrendChart(speciesData) {
+                const ctx = document.getElementById('species-trend-chart').getContext('2d');
+                const chartData = {
+                    labels: speciesData.dates,
+                    datasets: [{
+                        label: 'Sightings Over Time',
+                        data: speciesData.sightings,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        fill: false,
+                    }]
+                };
+
+                new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    },
+    mounted() {
+        this.fetchChecklists();
+    }
+});
+
+app.mount('#app');
     </script>
 </body>
 </html>

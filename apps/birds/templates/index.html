@@ -162,6 +162,35 @@
             background-color: var(--button-bg-hover);
         }
 
+        .navbar-dropdown {
+            background-color: var(--dropdown-bg);
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            display: none; /* Initially hidden */
+            z-index: 1000;
+        }
+
+        .navbar-item {
+            color: var(--dropdown-text-color);
+            padding: 10px 15px;
+            text-decoration: none;
+            display: block;
+            transition: background-color 0.3s ease;
+            border-radius: 5px;
+        }
+
+        .navbar-item:hover {
+            background-color: var(--button-bg-hover);
+        }
+
+        .navbar-item.has-dropdown:hover .navbar-dropdown {
+            display: block; /* Show dropdown on hover */
+        }
+
         .ui-autocomplete {
             max-height: 300px;
             overflow-y: auto;
@@ -215,7 +244,7 @@
         </div>
         <div class="nav-buttons">
             <a href="/birds/add_checklist" class="nav-button">Enter Checklist</a>
-            <a href="/birds/stats" class="nav-button">My Birding Stats</a>
+            <a href="/birds/my_checklists" class="nav-button">My Birding Stats</a>
             <a href="/birds/location" class="nav-button">Location Details</a>
         </div>
     </div>
@@ -493,7 +522,7 @@
             });
 
             markObservationButton.addEventListener('click', () => {
-                alert('Mark an observation on the map.');
+                window.location.href = '/birds/add_checklist';
             });
 
             initializeMap();
