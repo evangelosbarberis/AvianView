@@ -1,7 +1,108 @@
 [[extend 'layout.html']]
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AvianView - My CheckLists</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        :root {
+            --bg-color: #556b2f;
+            --text-color: #ffd700;
+            --card-bg: #8fbc8f;
+            --card-text: #ffffff;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .species-search {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        #species-search-input {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+
+        .species-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            color: var(--card-text);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .custom-div-icon {
+            margin-left: -12px;
+            margin-top: -36px;
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-bottom: 20px;
+            font-size: 18px;
+            transition: color 0.3s ease;
+        }
+
+        .back-button:hover {
+            color: #fff; /* Change color on hover */
+        }
+    </style>
+</head>
+<body>
 <div class="container mx-auto px-4 py-6" id="app" v-cloak>
     <!-- Header Section -->
     <div class="flex items-center justify-between mb-6">
+        <a href="/birds" class="back-button" style="text-decoration: none; color: var(--text-color);">
+            <i class="fa-solid fa-arrow-left"></i> Back to Home
+        </a>
         <div class="flex items-center">
           <img src="/birds/static/Images/logo.png" alt="AvianView Logo" class="logo">
             <h1 class="text-3xl font-bold text-[var(--text-color)]">
@@ -74,7 +175,7 @@
         </div>
     </div>
 </div>
-
+</body>
 [[block page_scripts]]
 <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
