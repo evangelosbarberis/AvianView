@@ -42,12 +42,23 @@ const app = Vue.createApp({
             this.speciesStatistics = null;
         
             try {
-                const response = await axios.get('/birds/get_species_stats', {
-                    params: { species: speciesName }
-                });
+                const response = await axios.post('/birds/get_species_statistics', { species: speciesName });
         
                 if (!response.data.error) {
-                    this.speciesStatistics = response.data;
+                    // Fetch additional details like species summary and observations
+                    const userStatsResponse = await axios.get('/birds/get_user_checklist_statistics');
+                    
+                    // Filter species summary for the selected species
+                    const filteredSummary = userStatsResponse.data.species_summary.filter(
+                        species => species.species === speciesName
+                    );
+                    
+                    // Combine both responses
+                    this.speciesStatistics = {
+                        ...response.data,
+                        ...userStatsResponse.data,
+                        species_summary: filteredSummary
+                    };
                 } else {
                     this.error = response.data.error || 'No statistics found for this species';
                 }
