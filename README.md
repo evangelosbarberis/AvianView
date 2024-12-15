@@ -74,7 +74,7 @@ We are senior Computer Science undergraduates at the University of California, S
 
 ### Evangelos Barberis
 
-I am Evangelos Barberis, a Computer Science graduate student at the University of California, Santa Cruz, with a dedicated focus on Human-Computer Interaction (HCI), UI, and UX design. My academic and professional pursuits are driven by a passion for creating impactful, innovative applications that blend cutting-edge design with meaningful user experiences.
+I am Evangelos Barberis, a Computer Science undergraduate student at the University of California, Santa Cruz, with a dedicated focus on Human-Computer Interaction (HCI), UI, and UX design. My academic and professional pursuits are driven by a passion for creating impactful, innovative applications that blend cutting-edge design with meaningful user experiences.
 
 In the AvianView project, I played a pivotal role in developing and implementing key application components, including the index, checklist, user statistics, and location pages. My contributions extended beyond functionality to a holistic design approach, encompassing seamless visual integration of maps and graphs, a custom color scheme, original logo design, and robust database management and data retrieval strategies.
 
