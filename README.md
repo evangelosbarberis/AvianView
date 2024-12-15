@@ -48,7 +48,7 @@ Greet users with an intuitive and visually compelling index page that showcases 
 ### Enter Checklist
 Once officially signed in, users are welcomed to a comprehensive checklist page where they can effortlessly document bird sightings with precise details. The interface automatically captures location and timestamp information through user location permissions, allowing users to seamlessly add multiple bird observations to their checklist with intuitive data entry capabilities.
 
-![ADD CHECKLIST](Images/Add-Checklist.png)
+![ADD CHECKLIST](Images/Checklist.png)
 
 After submitting their checklist, users can explore their personalized statistics through interactive, data-driven visualizations that provide insights into their bird-watching activities. The statistics page offers a comprehensive, searchable interface allowing users to dive deep into their recorded species, with the ability to filter and analyze their bird sightings with ease.
 
@@ -65,6 +65,9 @@ As users scroll down, they'll discover an additional layer of insights through a
 
 For users seeking detailed insights into a specific species, the search feature offers an unparalleled exploration experience. By selecting a species, users are immediately presented with a comprehensive view featuring a top density map and a time-based graph of sightings, revealing intricate patterns in bird population and movement—arguably the page's most compelling feature.
 
+![LOCATION 2](Images/Location3.png)
+![LOCATION 2](Images/Location4.png)
+
 # About Us
 
 We are senior Computer Science undergraduates at the University of California, Santa Cruz, with a passion for web design, practical applications, HCI development, and database management. Dedicated and hardworking, we are focused on creating innovative solutions in application development.
@@ -77,8 +80,4 @@ In the AvianView project, I played a pivotal role in developing and implementing
 
 ### Kevin Situ
 
-
-
-
-
-
+I am Kevin Situ, a Computer Science bachelor student at the University of California, Santa Cruz. I’m deeply curious of areas such as artificial intelligence, software development, and data structures. In AvianView, I contributed to the development of key features, including the index, checklist, and user statistics components. My role involved not only coding and implementing these functionalities but also ensuring seamless integration with the overall application architecture, optimizing performance, and enhancing the user experience.
