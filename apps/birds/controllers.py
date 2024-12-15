@@ -60,6 +60,87 @@ class ChecklistManager:
             logger.error(f"Checklist submission error: {str(e)}")
             return dict(status="error", message=str(e))
         
+    
+
+    @classmethod
+    def get_user_bird_statistics():
+        """
+        Retrieve comprehensive bird-watching statistics for the logged-in user
+        using my_checklist and sightings tables
+        """
+        # Ensure user is logged in
+        if not auth.user:
+            return {"error": "Please log in to view your statistics"}
+        
+        # Get current user's email
+        user_email = get_user_email()
+        
+        # Fetch all checklists for the user
+        user_checklists = db(db.my_checklist.OBSERVER_ID == user_email).select()
+        
+        # Aggregate species statistics
+        species_summary = {}
+        total_observations = 0
+        observation_dates = []
+        location_data = []
+        
+        for checklist in user_checklists:
+            # Find sightings for this checklist
+            checklist_sightings = db(
+                db.sightings.SAMPLING_EVENT_IDENTIFIER == checklist.id
+            ).select()
+            
+            for sighting in checklist_sightings:
+                species = sighting.COMMON_NAME
+                count = sighting.OBSERVATION_COUNT or 1
+                
+                # Update species summary
+                species_summary[species] = species_summary.get(species, 0) + count
+                total_observations += count
+                
+                # Track observation date
+                observation_dates.append(checklist.OBSERVATION_DATE)
+                
+                # Track location data
+                location_data.append({
+                    "species": species,
+                    "avg_latitude": checklist.LATITUDE,
+                    "avg_longitude": checklist.LONGITUDE,
+                    "location_count": count
+                })
+        
+        # Convert species summary to list of dictionaries
+        species_summary_list = [
+            {
+                "species": species, 
+                "total_count": count, 
+                "percentage": (count / total_observations) * 100 if total_observations > 0 else 0
+            } 
+            for species, count in species_summary.items()
+        ]
+        
+        # Sort species summary by total count descending
+        species_summary_list.sort(key=lambda x: x['total_count'], reverse=True)
+        
+        # Temporal trends
+        from datetime import datetime
+        observation_dates.sort()
+        
+        # Group observations by month/year
+        monthly_observations = {}
+        for date in observation_dates:
+            month_key = date.strftime("%Y-%m")
+            monthly_observations[month_key] = monthly_observations.get(month_key, 0) + 1
+        
+        return {
+            "total_observations": total_observations,
+            "species_summary": species_summary_list,
+            "monthly_trends": monthly_observations,
+            "location_data": location_data,
+            "first_observation": min(observation_dates) if observation_dates else None,
+            "last_observation": max(observation_dates) if observation_dates else None
+        }
+
     @classmethod
     def modify_checklist(cls, checklist_id, action_type, data=None):
         """
@@ -102,6 +183,7 @@ class ChecklistManager:
             db.rollback()
             logger.error(f"Checklist modification error: {str(e)}")
             return dict(status="error", message=f"Error processing checklist: {str(e)}")
+            
 
 # Bird Sightings and Location Routes
 @action("get_bird_sightings", method=["POST"])
@@ -334,6 +416,7 @@ def get_user_checklist_statistics():
     except Exception as e:
         logger.error(f"Error in get_user_checklist_statistics: {str(e)}")
         return dict(error=str(e))
+
 
 # Species and Checklist Routes
 @action("get_species", method=["GET"])

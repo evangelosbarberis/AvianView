@@ -4,9 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Statistics</title>
+    <title>Stats Page</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #556b2f;
@@ -36,17 +37,11 @@
             margin-bottom: 20px;
         }
 
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background-color: var(--text-color);
-            border: none;
-            border-radius: 5px;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            color: var(--bg-color);
+        .chart-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
         }
 
         .species-list {
@@ -62,6 +57,7 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -73,101 +69,61 @@
         <a href="/birds" class="back-button" style="text-decoration: none; color: var(--text-color);">
             <i class="fa-solid fa-arrow-left"></i> Back to Home
         </a>
-        <h1 class="title"><i class="fa-solid fa-chart-bar"></i> User Bird Statistics</h1>
+        <h1 class="title"><i class="fa-solid fa-chart-bar"></i> My Bird Watching Checklists</h1>
 
-        <!-- Species Search and Selection -->
-        <div class="columns">
-            <div class="column is-4">
-                <div class="field">
-                    <label class="label">Search Bird Species</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            v-model="searchQuery"
-                            @input="fetchSpecies"
-                            placeholder="Type to search species..."
-                        />
+        <!-- Loading State -->
+        <div v-if="isLoading" class="has-text-centered">
+            <div class="spinner"></div>
+            <p>Loading your checklists...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="notification is-danger">
+            {{ error }}
+        </div>
+
+        <!-- Checklists Dashboard -->
+        <div v-else>
+            <div class="stats-card">
+                <h2 class="subtitle">Checklist Summary</h2>
+                <div class="columns">
+                    <div class="column">
+                        <p><strong>Total Checklists:</strong> {{ checklists.length }}</p>
+                        <p v-if="checklists.length > 0">
+                            <strong>First Checklist:</strong> 
+                            {{ new Date(checklists[checklists.length - 1].OBSERVATION_DATE).toLocaleDateString() }}
+                        </p>
+                        <p v-if="checklists.length > 0">
+                            <strong>Latest Checklist:</strong> 
+                            {{ new Date(checklists[0].OBSERVATION_DATE).toLocaleDateString() }}
+                        </p>
                     </div>
                 </div>
 
-                <!-- Species List -->
-                <div class="species-list box">
-                    <table class="table is-fullwidth">
+                <!-- Checklists Table -->
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped is-hoverable">
                         <thead>
                             <tr>
-                                <th>Species Name</th>
-                                <th>Actions</th>
+                                <th>Date</th>
+                                <th>Common Name</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                                <th>Duration (min)</th>
+                                <th>Species Count</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="species in filteredSpecies" :key="species.id">
-                                <td>{{ species.COMMON_NAME }}</td>
-                                <td>
-                                    <button class="button is-small is-info" @click="viewSpeciesDetails(species)">
-                                        View Details
-                                    </button>
-                                </td>
+                            <tr v-for="checklist in checklists" :key="checklist.id">
+                                <td>{{ new Date(checklist.OBSERVATION_DATE).toLocaleDateString() }}</td>
+                                <td>{{ checklist.COMMON_NAME }}</td>
+                                <td>{{ checklist.LATITUDE.toFixed(4) }}</td>
+                                <td>{{ checklist.LONGITUDE.toFixed(4) }}</td>
+                                <td>{{ checklist.DURATION_MINUTES || 0 }}</td>
+                                <td>{{ checklist.species_count || 0 }}</td>
                             </tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- Species Statistics Details -->
-            <div class="column is-8">
-                <div v-if="selectedSpecies" class="stats-card">
-                    <h2 class="subtitle">{{ selectedSpecies.COMMON_NAME }} Observations</h2>
-
-                    <!-- Loading Spinner -->
-                    <div v-if="isLoading" class="has-text-centered">
-                        <div class="spinner"></div>
-                        <p>Loading statistics...</p>
-                    </div>
-
-                    <!-- Error Message -->
-                    <div v-else-if="error" class="notification is-danger">
-                        {{ error }}
-                    </div>
-
-                    <!-- Species Statistics -->
-                    <div v-else-if="speciesStatistics" class="content">
-                        <div class="columns">
-                            <div class="column">
-                                <h3 class="subtitle">Overview</h3>
-                                <p><strong>Total Observations:</strong> {{ speciesStatistics.total_observations }}</p>
-                                <p><strong>Total Checklists:</strong> {{ speciesStatistics.total_checklists }}</p>
-                            </div>
-                            <div class="column">
-                                <h3 class="subtitle">Observation Range</h3>
-                                <p><strong>First Observed:</strong> {{ speciesStatistics.first_observation || 'N/A' }}</p>
-                                <p><strong>Last Observed:</strong> {{ speciesStatistics.last_observation || 'N/A' }}</p>
-                            </div>
-                        </div>
-
-                        <h3 class="subtitle mt-4">Species Summary</h3>
-                        <table class="table is-fullwidth is-striped">
-                            <thead>
-                                <tr>
-                                    <th>Species</th>
-                                    <th>Total Count</th>
-                                    <th>Percentage</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="species in speciesStatistics.species_summary" :key="species.species">
-                                    <td>{{ species.species }}</td>
-                                    <td>{{ species.total_count }}</td>
-                                    <td>{{ species.percentage.toFixed(2) }}%</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- No Statistics -->
-                    <div v-else class="notification is-info">
-                        Select a species to view its statistics.
-                    </div>
                 </div>
             </div>
         </div>
@@ -175,6 +131,64 @@
 
     <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="[[=URL('static', 'js/stats.js')]]"></script>
+    <script>
+    const app = Vue.createApp({
+        data() {
+            return {
+                checklists: [],
+                isLoading: true,
+                error: null
+            };
+        },
+        methods: {
+            async fetchChecklists() {
+                this.isLoading = true;
+                this.error = null;
+                try {
+                    const response = await axios.get('/birds/get_my_checklists');
+                    
+                    // Fetch species count for each checklist
+                    const checklistsWithDetails = await Promise.all(
+                        response.data.checklists.map(async (checklist) => {
+                            try {
+                                const speciesCountResponse = await axios.get('/birds/get_checklist_species_count', {
+                                    params: { checklist_id: checklist.id }
+                                });
+    
+                                return {
+                                    ...checklist,
+                                    species_count: speciesCountResponse.data.total_observations || 0,
+                                    DURATION_MINUTES: checklist.DURATION_MINUTES || 0
+                                };
+                            } catch (error) {
+                                console.error(`Detailed error for checklist ${checklist.id}:`, error.response || error);
+                                return { 
+                                    ...checklist, 
+                                    species_count: 0,
+                                    DURATION_MINUTES: 0
+                                };
+                            }
+                        })
+                    );
+
+                    // Sort checklists by date in descending order
+                    this.checklists = checklistsWithDetails.sort((a, b) => 
+                        new Date(b.OBSERVATION_DATE) - new Date(a.OBSERVATION_DATE)
+                    );
+                } catch (error) {
+                    console.error('Error fetching checklists:', error);
+                    this.error = 'Failed to fetch checklists';
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+        },
+        mounted() {
+            this.fetchChecklists();
+        }
+    });
+
+    app.mount('#app');
+    </script>
 </body>
 </html>
