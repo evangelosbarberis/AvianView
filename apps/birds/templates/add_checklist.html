@@ -1,37 +1,35 @@
-[[extend 'layout.html']]
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    [[extend 'layout.html']]
+    <base href="[[=URL('static')]]/">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Checklist</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="css/bulma.css">
+    <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.css">
     <style>
         :root {
             --bg-color: #556b2f;
             --text-color: #ffd700;
-            --dark-bg-color: #2c3e50;
-            --dark-text-color: #e6b800;
         }
 
         [v-cloak] {
             display: none;
         }
 
-        body {
+        html, body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            transition: all 0.3s ease;
-        }
-
-        body.dark-mode {
-            background-color: var(--dark-bg-color);
-            color: var(--dark-text-color);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
         }
 
         .section {
             background-color: transparent;
+            min-height: 100vh;
+            padding-bottom: 2rem;
         }
 
         .checklist-container {
@@ -40,36 +38,63 @@
             padding: 20px;
         }
 
-        body.dark-mode .checklist-container {
-            background-color: rgba(0, 0, 0, 0.2);
-        }
-
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background-color: var(--text-color);
-            border: none;
-            border-radius: 5px;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            color: var(--bg-color);
-        }
-
-        body.dark-mode .theme-toggle {
-            background-color: var(--dark-text-color);
-            color: var(--dark-bg-color);
-        }
-
         .species-search-column {
             max-height: 70vh;
             overflow-y: auto;
         }
+        .added-species-list {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .species-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            padding: 5px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .modal {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .modal-content {
+            background-color: #ffffff; /* White background for readability */
+            color: #333333; /* Dark text for contrast */
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+        }
+
+        .modal .title {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            color: #333333;
+        }
+
+        .modal .button {
+            margin-top: 1rem;
+        }
+
     </style>
 </head>
 <body>
-
     <div class="section" id="app" v-cloak>
         <div class="container">
             <div class="columns">
@@ -94,7 +119,7 @@
                         <thead>
                             <tr>
                                 <th>Species Name</th>
-                                <th>Include</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -103,7 +128,8 @@
                                 <td>
                                     <button
                                         class="button is-small is-info"
-                                        @click="incrementCount(species)"
+                                        @click="showSpeciesModal(species)"
+                                        :disabled="species.isAdded"
                                     >Add</button>
                                 </td>
                             </tr>
@@ -116,14 +142,6 @@
                     <h1 class="title"><i class="fa-solid fa-clipboard-list"></i> Add Checklist</h1>
                     
                     <form @submit.prevent="validateAndSubmit">
-                        <div class="field">
-                            <label class="label">Species Name</label>
-                            <div class="control">
-                                <input class="input" type="text" v-model="speciesName" placeholder="Enter species name">
-                            </div>
-                            <p v-if="errors.speciesName" class="help is-danger">{{ errors.speciesName }}</p>
-                        </div>
-
                         <div class="columns">
                             <div class="column">
                                 <div class="field">
@@ -133,10 +151,10 @@
                                             class="input"
                                             type="text"
                                             v-model="latitude"
-                                            placeholder="Latitude will be auto-filled"
+                                            placeholder="Enter Latitude"
+                                            
                                         >
                                     </div>
-                                    <p v-if="errors.latitude" class="help is-danger">{{ errors.latitude }}</p>
                                 </div>
                             </div>
                             <div class="column">
@@ -147,10 +165,9 @@
                                             class="input"
                                             type="text"
                                             v-model="longitude"
-                                            placeholder="Longitude will be auto-filled"
+                                            placeholder="Enter Longitude"
                                         >
                                     </div>
-                                    <p v-if="errors.longitude" class="help is-danger">{{ errors.longitude }}</p>
                                 </div>
                             </div>
                         </div>
@@ -162,7 +179,6 @@
                                     <div class="control">
                                         <input class="input" type="date" v-model="observationDate">
                                     </div>
-                                    <p v-if="errors.observationDate" class="help is-danger">{{ errors.observationDate }}</p>
                                 </div>
                             </div>
                             <div class="column">
@@ -171,7 +187,6 @@
                                     <div class="control">
                                         <input class="input" type="time" v-model="timeObservationsStarted">
                                     </div>
-                                    <p v-if="errors.timeObservationsStarted" class="help is-danger">{{ errors.timeObservationsStarted }}</p>
                                 </div>
                             </div>
                         </div>
@@ -181,12 +196,37 @@
                             <div class="control">
                                 <input class="input" type="number" v-model="durationMinutes" placeholder="Enter duration in minutes">
                             </div>
-                            <p v-if="errors.durationMinutes" class="help is-danger">{{ errors.durationMinutes }}</p>
                         </div>
 
-                        <div class="field is-grouped">
+                        <!-- Added Species List -->
+                        <div class="added-species-list" v-if="addedSpecies.length > 0">
+                            <h3 class="subtitle is-6 mb-3">Species Observed</h3>
+                            <div v-for="(species, index) in addedSpecies" :key="species.id" class="species-item">
+                                <span>
+                                    {{ species.COMMON_NAME }} - {{ species.count }} observed
+                                </span>
+                                <div class="buttons are-small">
+                                    <button 
+                                        type="button"
+                                        class="button is-warning"
+                                        @click="editSpecies(index)"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        class="button is-danger"
+                                        @click="removeSpecies(index)"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="field is-grouped mt-4">
                             <div class="control">
-                                <button type="submit" class="button is-link" :disabled="hasErrors">Submit Checklist</button>
+                                <button type="submit" class="button is-link" :disabled="!isFormValid">Submit Checklist</button>
                             </div>
                             <div class="control">
                                 <button type="button" class="button is-light" @click="resetForm">Cancel</button>
@@ -196,10 +236,211 @@
                 </div>
             </div>
         </div>
+
+        <!-- Species Count Modal -->
+        <div id="speciesModal" class="modal" v-if="currentSpecies" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-content">
+                <h2 id="modalTitle" class="title">Add {{ currentSpecies.COMMON_NAME }}</h2>
+                <div class="field">
+                    <label class="label">Number of Species Observed</label>
+                    <div class="control">
+                        <input 
+                            type="number" 
+                            class="input" 
+                            v-model.number="speciesCount" 
+                            min="1" 
+                            placeholder="Enter count"
+                        >
+                    </div>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button 
+                            class="button is-primary" 
+                            @click="confirmAddSpecies"
+                        >
+                            Confirm
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button 
+                            class="button is-light" 
+                            @click="closeSpeciesModal"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
     </div>
-    <button class="theme-toggle" id="theme-toggle">🌙</button>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="[[=URL('static', 'js/add_checklist.js')]]"></script>
+
+    <script src="js/vue3.js"></script>
+    <script src="js/axios.min.js"></script>
+    <script>
+    const app = Vue.createApp({
+        data() {
+            return {
+                searchQuery: '', 
+                speciesList: [], 
+                filteredSpecies: [], 
+                addedSpecies: [],
+                latitude: '', 
+                longitude: '', 
+                observationDate: '', 
+                timeObservationsStarted: '', 
+                durationMinutes: null,
+                currentSpecies: null,
+                speciesCount: 1,
+                editingSpeciesIndex: null
+            };
+        },
+        computed: {
+            isFormValid() {
+                return this.latitude && 
+                       this.longitude && 
+                       this.observationDate && 
+                       this.timeObservationsStarted && 
+                       this.durationMinutes && 
+                       this.addedSpecies.length > 0;
+            }
+        },
+        methods: {
+            async fetchSpecies() {
+                try {
+                    const response = await axios.get('/birds/search_species', {
+                        params: { q: this.searchQuery }
+                    });
+                    this.speciesList = response.data.species.map(s => ({
+                        ...s, 
+                        isAdded: this.addedSpecies.some(added => added.id === s.id)
+                    }));
+                    this.filteredSpecies = this.speciesList;
+                } catch (error) {
+                    console.error('Error fetching species data:', error);
+                }
+            },
+            
+
+            
+            showSpeciesModal(species) {
+                // Check if species is already added
+                const existingSpeciesIndex = this.addedSpecies.findIndex(s => s.id === species.id);
+                
+                // Reset count to 1 or existing count
+                this.speciesCount = existingSpeciesIndex !== -1 
+                    ? this.addedSpecies[existingSpeciesIndex].count 
+                    : 1;
+                
+                this.currentSpecies = species;
+                this.editingSpeciesIndex = existingSpeciesIndex;
+                document.getElementById('speciesModal').style.display = 'block';
+            },
+            confirmAddSpecies() {
+                if (!this.currentSpecies) return;
+
+                if (this.editingSpeciesIndex !== -1 && this.editingSpeciesIndex !== null) {
+                    // Update existing species
+                    this.addedSpecies[this.editingSpeciesIndex].count = this.speciesCount;
+                } else {
+                    // Add new species
+                    const newSpecies = {
+                        ...this.currentSpecies, 
+                        count: this.speciesCount,
+                        id: this.currentSpecies.id
+                    };
+                    this.addedSpecies.push(newSpecies);
+                }
+
+                // Update filteredSpecies 
+                const index = this.filteredSpecies.findIndex(s => s.id === this.currentSpecies.id);
+                if (index !== -1) {
+                    this.filteredSpecies[index].isAdded = true;
+                }
+
+                // Close modal and reset states
+                this.closeSpeciesModal();
+                this.editingSpeciesIndex = null;
+            },
+            closeSpeciesModal() {
+                this.currentSpecies = null;
+                document.getElementById('speciesModal').style.display = 'none';
+            },
+            editSpecies(index) {
+                const species = this.addedSpecies[index];
+                this.showSpeciesModal(species);
+                this.editingSpeciesIndex = index;
+                this.speciesCount = species.count;
+            },
+            removeSpecies(index) {
+                const removedSpecies = this.addedSpecies[index];
+                
+                // Remove from addedSpecies
+                this.addedSpecies.splice(index, 1);
+                
+                // Update filteredSpecies to show it can be added again
+                const filteredIndex = this.filteredSpecies.findIndex(s => s.id === removedSpecies.id);
+                if (filteredIndex !== -1) {
+                    this.filteredSpecies[filteredIndex].isAdded = false;
+                }
+            },
+            resetForm() {
+                this.addedSpecies = [];
+                this.observationDate = '';
+                this.timeObservationsStarted = '';
+                this.durationMinutes = null;
+                this.filteredSpecies = this.speciesList;
+            },
+            async validateAndSubmit() {
+                if (this.isFormValid) {
+                    const checklist = {
+                        speciesName: this.addedSpecies.map(s => s.COMMON_NAME).join(', '), // Combine species names
+                        latitude: this.latitude, 
+                        longitude: this.longitude,
+                        observationDate: this.observationDate,
+                        timeObservationsStarted: this.timeObservationsStarted,
+                        durationMinutes: this.durationMinutes,
+                        species: this.addedSpecies.map(s => ({
+                            COMMON_NAME: s.COMMON_NAME,
+                            count: s.count
+                        }))
+                    };
+
+                    try {
+                        const response = await axios.post('/birds/submit_checklist', checklist);
+                        console.log('Submission response:', response.data);
+                        
+                        if (response.data.status === 'success') {
+                            window.location.href = '/birds/my_checklists';
+                        } else {
+                            alert(response.data.message || 'Failed to submit checklist');
+                        }
+                    } catch (error) {
+                        console.error('Error submitting checklist:', error);
+                        alert('Failed to submit checklist. Please try again.');
+                    }
+                } else {
+                    alert('Please fill out all required fields and add at least one species.');
+                }
+            }
+        },
+        mounted() {
+            // Get latitude and longitude using Geolocation API
+            const now = new Date();
+            this.observationDate = now.toISOString().slice(0, 10); // Extract YYYY-MM-DD format
+            this.timeObservationsStarted = now.toTimeString().slice(0, 5);
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    this.latitude = position.coords.latitude.toFixed(6);
+                    this.longitude = position.coords.longitude.toFixed(6);
+                }, (error) => {
+                    console.error("Error getting location:", error);
+                });
+            }
+        }
+    });
+    app.mount('#app');
+    </script>
 </body>
 </html>

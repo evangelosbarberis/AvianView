@@ -393,7 +393,11 @@ def search_species():
 @action.uses(db, auth.user)
 def submit_checklist():
     """Submit a new checklist"""
-    return ChecklistManager.submit_checklist(request.json)
+    data = request.json
+    logger.info(f"Received checklist data: {data}")
+    result = ChecklistManager.submit_checklist(data)
+    logger.info(f"Checklist submission result: {result}")
+    return result
 
 @action('delete_checklist/<checklist_id>', method=["DELETE"])
 @action.uses(db, auth.user)
